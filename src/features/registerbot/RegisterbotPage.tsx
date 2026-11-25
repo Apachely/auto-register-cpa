@@ -191,10 +191,10 @@ function RegisterbotWorkbench() {
   const visibleRuns = (work.snapshot?.runs ?? [])
     .filter((run) => !selected || run.channel === selected.id)
     .sort((a, b) => b.createdAt - a.createdAt);
-  const visibleEvents = work.events.filter(
-    (event) => !selected || !event.channel || event.channel === selected.id
-  );
-  const latestBrowser = [...visibleEvents].reverse().find((event) => event.browser)?.browser;
+  const visibleEvents = work.events
+    .filter((event) => !selected || !event.channel || event.channel === selected.id)
+    .sort((a, b) => b.seq - a.seq);
+  const latestBrowser = visibleEvents.find((event) => event.browser)?.browser;
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!selected?.enabled || work.busy || !sourceRef.current) return;

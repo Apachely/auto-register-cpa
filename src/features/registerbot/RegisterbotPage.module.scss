@@ -216,6 +216,7 @@
 .timeline {
   max-height: 360px;
   overflow-y: auto;
+  overflow-anchor: none;
   li {
     display: flex;
     flex-wrap: wrap;
