@@ -118,8 +118,11 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 	}()
 	started := time.Now()
 	lastAction := ""
+	lastActionPath := ""
 	lastProgress := time.Now()
 	acted := false
+	workspaceClicks := 0
+	var lastWorkspaceClick time.Time
 	sawOnboarding, creditConfirmed := false, false
 	ticker := time.NewTicker(700 * time.Millisecond)
 	defer ticker.Stop()
@@ -151,9 +154,20 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			sawOnboarding = true
 			creditConfirmed = creditConfirmed || page.CreditConfirmed
 		}
-		if page.Action != lastAction && page.Action != "loading" {
+		actionPath := ""
+		if parsed, errURL := url.Parse(page.URL); errURL == nil {
+			actionPath = parsed.Hostname() + parsed.Path
+		}
+		if (page.Action != lastAction || actionPath != lastActionPath) && page.Action != "loading" {
 			lastAction, lastProgress, acted = page.Action, time.Now(), false
+			lastActionPath = actionPath
+			workspaceClicks = 0
 			task.Report(page.Action, "info", freeAIStageMessage(page.Action))
+		}
+		// A dispatched click does not prove that the terms page advanced. Retry
+		// briefly while it remains visible, without extending the stall budget.
+		if page.Action == "speedbump" && acted && workspaceClicks < 3 && time.Since(lastWorkspaceClick) >= 2*time.Second {
+			acted = false
 		}
 		if page.Action == "key" && freeAIHost(page.URL) && keyPattern.MatchString(page.Key) {
 			if sawOnboarding {
@@ -232,6 +246,13 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			case "consent":
 				_ = session.ScrollToEnd(acquireCtx)
 				errAction = session.ClickText(acquireCtx, "I understand", "我了解", "我知道了", "我明白了", "I agree", "我同意", "Allow", "允许", "Continue", "继续", "Accept", "接受", "Next", "下一步")
+			case "speedbump":
+				errAction = session.AcceptWorkspaceTerms(acquireCtx)
+				if errAction == nil {
+					workspaceClicks++
+					lastWorkspaceClick = time.Now()
+					task.Report("speedbump", "info", "Workspace terms button clicked; waiting for navigation")
+				}
 			case "google":
 				errAction = session.ClickText(acquireCtx, "Continue with Google", "Sign in with Google", "使用 Google", "Google")
 			case "reveal":
@@ -243,7 +264,9 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			}
 			if errAction == nil {
 				acted = true
-				lastProgress = time.Now()
+				if page.Action != "speedbump" || workspaceClicks == 1 {
+					lastProgress = time.Now()
+				}
 			}
 			var networkError *NavigationError
 			if errors.As(errAction, &networkError) {
@@ -286,6 +309,8 @@ func freeAIStageMessage(stage string) string {
 		return "selecting Google account"
 	case "consent":
 		return "confirming Google consent or Workspace terms"
+	case "speedbump":
+		return "scrolling Workspace terms and confirming I understand"
 	case "google":
 		return "opening Google authorization"
 	case "key":
@@ -320,7 +345,8 @@ const freeAIInspectScript = `(function(){
  var free=host==='freeaiapikey.com'||host==='www.freeaiapikey.com';
  if(chromeError&&networkMatch){action='network_error';networkCode=networkMatch[0];}
  else if(google){
-  if(text.includes('wrong password')||text.includes('密码错误')||text.includes("couldn’t find your google account")||text.includes("couldn't find your google account")){action='invalid_credentials';}
+  if(path.includes('/speedbump/')&&path.includes('workspacetermsofservice')){action='speedbump';}
+  else if(text.includes('wrong password')||text.includes('密码错误')||text.includes("couldn’t find your google account")||text.includes("couldn't find your google account")){action='invalid_credentials';}
   else if(has('input[type=password]')){action='password';}
   else if(has('#identifierId,input[name=identifier],input[type=email]')){action='email';}
   else if(text.includes('this browser or app may not be secure')||text.includes('此浏览器或应用可能不安全')){action='blocked';}

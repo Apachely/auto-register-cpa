@@ -899,6 +899,7 @@ func (s *Session) clickAt(ctx context.Context, x, y float64) error {
 	for key, value := range base {
 		released[key] = value
 	}
+	released["buttons"] = 0
 	if _, errRelease := s.call(ctx, "Input.dispatchMouseEvent", released); errRelease != nil {
 		return fmt.Errorf("registerbot: mouse release: %w", errRelease)
 	}
@@ -1003,6 +1004,47 @@ var keyDefinitions = map[string]keyDefinition{
 	"Backspace": {key: "Backspace", code: "Backspace", virtual: 8},
 	"PageDown":  {key: "PageDown", code: "PageDown", virtual: 34},
 	"End":       {key: "End", code: "End", virtual: 35},
+}
+
+// AcceptWorkspaceTerms scrolls the document and nested terms containers, then
+// resolves an unobstructed in-viewport control before dispatching a real click.
+func (s *Session) AcceptWorkspaceTerms(ctx context.Context) error {
+	value, errEval := s.Evaluate(ctx, `(async function(){
+		if(location.hostname!=='accounts.google.com'||!location.pathname.includes('/speedbump/'))return null;
+		var visible=function(el){var r=el.getBoundingClientRect(),st=getComputedStyle(el);return r.width>1&&r.height>1&&st.display!=='none'&&st.visibility!=='hidden'&&Number(st.opacity)!==0;};
+		var roots=[document.scrollingElement,document.documentElement,document.body];
+		roots.forEach(function(el){if(el)el.scrollTo({top:el.scrollHeight,behavior:'instant'});});
+		Array.from(document.querySelectorAll('*')).forEach(function(el){
+			if(el.clientHeight>0&&el.scrollHeight>el.clientHeight+2&&visible(el)&&/auto|scroll|overlay|hidden/.test(getComputedStyle(el).overflowY)){
+				el.scrollTo({top:el.scrollHeight,behavior:'instant'});
+			}
+		});
+		await new Promise(function(resolve){setTimeout(resolve,250);});
+		var labels=['i understand','i undetstand','我了解','我理解','我知道了','我明白了'];
+		var controls=Array.from(document.querySelectorAll('button,[role="button"],input[type="submit"],input[type="button"]'));
+		var button=controls.find(function(el){
+			var label=String(el.innerText||el.value||el.getAttribute('aria-label')||el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+			return labels.includes(label)&&visible(el)&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';
+		});
+		if(!button)return null;
+		button.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
+		await new Promise(function(resolve){setTimeout(resolve,100);});
+		if(!button.isConnected||button.disabled||button.getAttribute('aria-disabled')==='true')return null;
+		var rect=button.getBoundingClientRect();
+		var left=Math.max(0,rect.left),right=Math.min(innerWidth,rect.right),top=Math.max(0,rect.top),bottom=Math.min(innerHeight,rect.bottom);
+		if(right-left<2||bottom-top<2)return null;
+		var x=(left+right)/2,y=(top+bottom)/2,hit=document.elementFromPoint(x,y);
+		if(!hit||(hit!==button&&!button.contains(hit)))return null;
+		return {x:x,y:y};
+	})()`, true)
+	if errEval != nil {
+		return errEval
+	}
+	point, ok := asPoint(value)
+	if !ok {
+		return errors.New("registerbot: Workspace terms confirmation is not yet ready")
+	}
+	return s.clickAt(ctx, point.x, point.y)
 }
 
 // ScrollToEnd pages a long consent screen so its accept control becomes usable.
