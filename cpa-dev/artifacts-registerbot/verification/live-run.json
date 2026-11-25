@@ -1,0 +1,32 @@
+{
+  "id": "1b58c752-251c-498f-a359-c083b1a57a0c",
+  "channel": "freeaiapikey",
+  "status": "done",
+  "created_at": 1795592606294,
+  "updated_at": 1795592838792,
+  "rows": [
+    {
+      "id": "f822c5f3-e749-4785-9f0e-071426f4ca1d",
+      "line": 1,
+      "account": "li***@centeduc.us",
+      "stage": "done",
+      "attempt": 1,
+      "masked_key": "sk-…-m0E",
+      "updated_at": 1795592838792
+    }
+  ],
+  "counters": {
+    "channel": "freeaiapikey",
+    "total": 1,
+    "queued": 0,
+    "running": 0,
+    "done": 1,
+    "failed": 0,
+    "skipped": 0,
+    "waiting_human": 0,
+    "pending_write": 0,
+    "harvested_keys": 1,
+    "stage": "done",
+    "updated_at": 1795592838792
+  }
+}

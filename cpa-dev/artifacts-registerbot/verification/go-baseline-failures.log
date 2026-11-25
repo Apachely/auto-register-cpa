@@ -1,0 +1,143 @@
+--- FAIL: TestCurrentKVClientBridgesLocalBoltStoreAndPrioritizesHome (1.94s)
+    testing.go:1617: TempDir RemoveAll cleanup: unlinkat C:\Users\443\AppData\Local\Temp\TestCurrentKVClientBridgesLocalBoltStoreAndPrioritizesHome774767388\001\bridge.db: The process cannot access the file because it is being used by another process.
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/home	2.125s
+--- FAIL: TestControllerPrioritizesHomeProviderOverLocalBoltStore (1.68s)
+    testing.go:1617: TempDir RemoveAll cleanup: unlinkat C:\Users\443\AppData\Local\Temp\TestControllerPrioritizesHomeProviderOverLocalBoltStore1120406395\001\local.db: The process cannot access the file because it is being used by another process.
+--- FAIL: TestControllerHelpersWithLocalBoltStore (1.61s)
+    testing.go:1617: TempDir RemoveAll cleanup: unlinkat C:\Users\443\AppData\Local\Temp\TestControllerHelpersWithLocalBoltStore2250301641\001\helpers.db: The process cannot access the file because it is being used by another process.
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/kvstore	3.445s
+--- FAIL: TestShadowDirectoryDigestResolvesRelativePathsByWorkingDirectory (1.62s)
+    testing.go:1617: TempDir RemoveAll cleanup: unlinkat C:\Users\443\AppData\Local\Temp\TestShadowDirectoryDigestResolvesRelativePathsByWorkingDirectory1417752360\002: The process cannot access the file because it is being used by another process.
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/pluginhost	1.821s
+--- FAIL: TestIssue6825StreamToolIndicesAcrossChunks (0.00s)
+    antigravity_issue6825_test.go:46: stream tool indices = [0 1 2 0 1 2], want [0 1 2]; clients must not merge distinct calls
+    antigravity_issue6825_test.go:49: tool arguments = [{"tz":"UTC" {"tz":"America/Santiago" {"tz":"Asia/Tokyo" } } }], want [{"tz":"UTC"} {"tz":"America/Santiago"} {"tz":"Asia/Tokyo"}]
+--- FAIL: TestIssue6825ToolPolicyKeepsHistoricalSignature (0.01s)
+    --- FAIL: TestIssue6825ToolPolicyKeepsHistoricalSignature/auto (0.01s)
+        antigravity_issue6825_test.go:166: unexpected new tool index 0, want 1
+    --- FAIL: TestIssue6825ToolPolicyKeepsHistoricalSignature/none (0.00s)
+        antigravity_issue6825_test.go:166: unexpected new tool index 0, want 1
+    --- FAIL: TestIssue6825ToolPolicyKeepsHistoricalSignature/omitted_tools (0.00s)
+        antigravity_issue6825_test.go:166: unexpected new tool index 0, want 1
+--- FAIL: TestIssue6825PayloadRulesRemainFinal (0.00s)
+    --- FAIL: TestIssue6825PayloadRulesRemainFinal/stream=true (0.00s)
+        antigravity_issue6825_test.go:166: unexpected new tool index 0, want 1
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/runtime/executor	0.434s
+--- FAIL: TestGitFastForwardPreservesModesLinksAndUnrelatedEdits (0.31s)
+    git_workspace_test.go:166: script: &{script 32 {3229356263 31292590} {3229356263 31292590} {3229356263 31292590} 0 10 0 0 {{} {0 0}} C:\Users\443\AppData\Local\Temp\TestGitFastForwardPreservesModesLinksAndUnrelatedEdits2560666951\001\a\script 0 0 0 false}, <nil>
+--- FAIL: TestGitRejectsConfigLinksInWorktreeAndOriginalTree (0.58s)
+    --- FAIL: TestGitRejectsConfigLinksInWorktreeAndOriginalTree/tree/config/config.yaml (0.25s)
+        git_workspace_test.go:444: remote file config/config.yaml contents = "C:/Users/443/AppData/Local/Temp/TestGitRejectsConfigLinksInWorktreeAndOriginalTreetreeconfigc20153793/002/config.yaml", want "C:\\Users\\443\\AppData\\Local\\Temp\\TestGitRejectsConfigLinksInWorktreeAndOriginalTreetreeconfigc20153793\\002\\config.yaml"
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/store	1.123s
+--- FAIL: TestConvertOpenAIResponsesRequestToAntigravity_InterruptedMessageBeforeRealOutputPreservesPairingAndOrder (0.00s)
+    antigravity_openai-responses_request_test.go:788: unexpected text in request.contents[2]: ""
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/translator/antigravity/openai/responses	0.274s
+time="2026-11-25T15:29:48+08:00" level=warning msg="responses->claude: dropped input items of unmapped types map[tool_search_call:1 tool_search_output:1] (model=claude-sonnet-4-5)"
+time="2026-11-25T15:29:48+08:00" level=warning msg="responses->claude: dropped input items of unmapped types map[tool_search_call:1 tool_search_output:1] (model=claude-sonnet-4-5)"
+time="2026-11-25T15:29:48+08:00" level=warning msg="responses->claude: dropped input items of unmapped types map[tool_search_call:1 tool_search_output:1] (model=claude-sonnet-4-5)"
+time="2026-11-25T15:29:48+08:00" level=warning msg="responses->claude: dropped input items of unmapped types map[tool_search_call:1 tool_search_output:1] (model=claude-sonnet-4-5)"
+time="2026-11-25T15:29:48+08:00" level=warning msg="responses->claude: dropped input items of unmapped types map[tool_search_call:1 tool_search_output:1] (model=claude-sonnet-4-5)"
+--- FAIL: TestToolSearchDisabledMatchesDevGolden (0.01s)
+    --- FAIL: TestToolSearchDisabledMatchesDevGolden/named_declarations (0.00s)
+        claude_openai-responses_tool_search_disabled_test.go:90: request differs from dev
+             got: {"model":"claude-sonnet-4-5","max_tokens":32000,"messages":[{"role":"user","content":"create a calendar event"}],"metadata":{"user_id":"9b08c69653d737ccfdfd1d575cdecaeef5060855a33a1b2bc500b2adbb72c78e"},"stream":true,"system":[{"type":"text","text":"You are Codex."}],"tools":[{"name":"exec_command","description":"Run a command.","input_schema":{"properties":{"cmd":{"type":"string"}},"required":["cmd"],"type":"object"}},{
+                  "type": "tool_search",
+                  "name": "ToolSearch"
+                 },{
+                  "type": "tool_search",
+                  "execution": "client",
+                  "description": "# Tool discovery\n\nSearches deferred tools.",
+                  "parameters": {
+                   "type": "object",
+                   "properties": {
+                    "limit": {
+                     "type": "number"
+                    },
+                    "query": {
+                     "type": "string"
+                    }
+                   },
+                   "required": [
+                    "query"
+                   ],
+                   "additionalProperties": false
+                  },
+                  "name": "ClientSearch"
+                 },{"name":"lookup_order","description":"Look up an order.","input_schema":{"properties":{"id":{"type":"string"}},"required":["id"],"type":"object"}}],"tool_choice":{"type":"auto"}} 
+            want: {"model":"claude-sonnet-4-5","max_tokens":32000,"messages":[{"role":"user","content":"create a calendar event"}],"metadata":{"user_id":"9b08c69653d737ccfdfd1d575cdecaeef5060855a33a1b2bc500b2adbb72c78e"},"stream":true,"system":[{"type":"text","text":"You are Codex."}],"tools":[{"name":"exec_command","description":"Run a command.","input_schema":{"properties":{"cmd":{"type":"string"}},"required":["cmd"],"type":"object"}},{
+                  "type": "tool_search",
+                  "name": "ToolSearch"
+                 },{
+                  "type": "tool_search",
+                  "execution": "client",
+                  "description": "# Tool discovery\n\nSearches deferred tools.",
+                  "parameters": {
+                   "type": "object",
+                   "properties": {
+                    "limit": {
+                     "type": "number"
+                    },
+                    "query": {
+                     "type": "string"
+                    }
+                   },
+                   "required": [
+                    "query"
+                   ],
+                   "additionalProperties": false
+                  },
+                  "name": "ClientSearch"
+                 },{"name":"lookup_order","description":"Look up an order.","input_schema":{"properties":{"id":{"type":"string"}},"required":["id"],"type":"object"}}],"tool_choice":{"type":"auto"}} 
+    --- FAIL: TestToolSearchDisabledMatchesDevGolden/named_declarations_session (0.00s)
+        claude_openai-responses_tool_search_disabled_test.go:90: request differs from dev
+             got: {"model":"claude-sonnet-4-5","max_tokens":32000,"messages":[{"role":"user","content":"create a calendar event"}],"metadata":{"user_id":"9b08c69653d737ccfdfd1d575cdecaeef5060855a33a1b2bc500b2adbb72c78e"},"stream":true,"system":[{"type":"text","text":"You are Codex."}],"tools":[{"name":"exec_command","description":"Run a command.","input_schema":{"properties":{"cmd":{"type":"string"}},"required":["cmd"],"type":"object"}},{
+                  "type": "tool_search",
+                  "execution": "client",
+                  "description": "# Tool discovery\n\nSearches deferred tools.",
+                  "parameters": {
+                   "type": "object",
+                   "properties": {
+                    "limit": {
+                     "type": "number"
+                    },
+                    "query": {
+                     "type": "string"
+                    }
+                   },
+                   "required": [
+                    "query"
+                   ],
+                   "additionalProperties": false
+                  },
+                  "name": "ClientSearch"
+                 },{"name":"lookup_order","description":"Look up an order.","input_schema":{"properties":{"id":{"type":"string"}},"required":["id"],"type":"object"}}],"tool_choice":{"type":"auto"}} 
+            want: {"model":"claude-sonnet-4-5","max_tokens":32000,"messages":[{"role":"user","content":"create a calendar event"}],"metadata":{"user_id":"9b08c69653d737ccfdfd1d575cdecaeef5060855a33a1b2bc500b2adbb72c78e"},"stream":true,"system":[{"type":"text","text":"You are Codex."}],"tools":[{"name":"exec_command","description":"Run a command.","input_schema":{"properties":{"cmd":{"type":"string"}},"required":["cmd"],"type":"object"}},{
+                  "type": "tool_search",
+                  "execution": "client",
+                  "description": "# Tool discovery\n\nSearches deferred tools.",
+                  "parameters": {
+                   "type": "object",
+                   "properties": {
+                    "limit": {
+                     "type": "number"
+                    },
+                    "query": {
+                     "type": "string"
+                    }
+                   },
+                   "required": [
+                    "query"
+                   ],
+                   "additionalProperties": false
+                  },
+                  "name": "ClientSearch"
+                 },{"name":"lookup_order","description":"Look up an order.","input_schema":{"properties":{"id":{"type":"string"}},"required":["id"],"type":"object"}}],"tool_choice":{"type":"auto"}} 
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/translator/claude/openai/responses	0.272s
+FAIL

@@ -1,0 +1,46 @@
+{
+  "headings": [
+    "多渠道注册机"
+  ],
+  "desktopOverflow": false,
+  "mobileOverflow": false,
+  "pageErrors": [],
+  "responses": [
+    {
+      "path": "/v8/management/registerbot",
+      "status": 200
+    },
+    {
+      "path": "/v8/management/registerbot/events",
+      "status": 200
+    },
+    {
+      "path": "/v8/management/registerbot/gateway",
+      "status": 200
+    },
+    {
+      "path": "/v8/management/registerbot/gateway",
+      "status": 200
+    },
+    {
+      "path": "/v8/management/registerbot/gateway",
+      "status": 200
+    },
+    {
+      "path": "/v8/management/registerbot/gateway",
+      "status": 200
+    },
+    {
+      "path": "/v8/management/registerbot/gateway",
+      "status": 200
+    },
+    {
+      "path": "/v8/management/registerbot/gateway",
+      "status": 200
+    },
+    {
+      "path": "/v8/management/registerbot",
+      "status": 200
+    }
+  ]
+}

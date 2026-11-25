@@ -1,0 +1,15 @@
+{
+  "run": "1b58c752-251c-498f-a359-c083b1a57a0c",
+  "status": "done",
+  "done": 1,
+  "failed": 0,
+  "provider": "FreeAi",
+  "keyCountBefore": 4,
+  "keyCountAfter": 5,
+  "maskedKey": "sk-…-m0E",
+  "proxy": "http://127.0.0.1:12450",
+  "modelCount": 15,
+  "etagPresent": true,
+  "backendMatches": true,
+  "panelMatches": true
+}

@@ -1,0 +1,9 @@
+{
+  "unauthenticatedStatus": 401,
+  "initialEvents": 16,
+  "after": 9,
+  "replayedEvents": 7,
+  "ordered": true,
+  "onlyAfterCursor": true,
+  "retainedTailPresent": true
+}

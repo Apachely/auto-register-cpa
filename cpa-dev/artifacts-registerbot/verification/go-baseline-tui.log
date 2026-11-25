@@ -1,0 +1,25 @@
+--- FAIL: TestTUIClientFailureExitsWithFailure (30.00s)
+    main_exit_test.go:122: expected TUI error on stderr, got:
+        stdout:
+        CLIProxyAPI Version: dev, Commit: none, BuiltAt: unknown
+        [2026-11-25 15:31:33] [--------] [info ] [main.go:609] CLIProxyAPI Version: dev, Commit: none, BuiltAt: unknown
+        [?25l[?1049h[2J[H[?25l[?2004h[H
+🔐 Connect Management API
+                                 
+         Enter management password and press Enter to connect
+        
+          Password:  
+         Enter: connect • q/Ctrl+C: quit • L: lang[6;H
+        stderr:
+--- FAIL: TestTUIStandaloneFailureExitsWithFailure (30.01s)
+    main_exit_test.go:176: expected TUI error on stderr, got:
+        stdout:
+        CLIProxyAPI Version: dev, Commit: none, BuiltAt: unknown
+        [2026-11-25 15:32:03] [--------] [info ] [main.go:609] CLIProxyAPI Version: dev, Commit: none, BuiltAt: unknown
+        [2026-11-25 15:32:03] [--------] [info ] [main.go:720] Local model mode: using embedded catalogs unless an explicit catalog source is configured
+        [?25l[?1049h[2J[H[?25l[?2004h[H
+Initializing...[H
+        stderr:
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/cmd/server	60.486s
+FAIL

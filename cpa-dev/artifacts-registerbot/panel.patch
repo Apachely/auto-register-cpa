@@ -1,0 +1,2871 @@
+diff --git a/src/components/layout/MainLayout.tsx b/src/components/layout/MainLayout.tsx
+index b6c93e8..93497bb 100644
+--- a/src/components/layout/MainLayout.tsx
++++ b/src/components/layout/MainLayout.tsx
+@@ -648,6 +648,12 @@ export function MainLayout() {
+           metaKey: 'provider_key_import.nav_hint',
+           icon: <IconUpload size={18} />,
+         },
++        {
++          path: '/registerbot',
++          labelKey: 'registerbot.nav',
++          metaKey: 'registerbot.nav_hint',
++          icon: sidebarIcons.oauth,
++        },
+         {
+           path: '/auth-files',
+           labelKey: 'nav.auth_files',
+diff --git a/src/features/registerbot/ChannelEditor.tsx b/src/features/registerbot/ChannelEditor.tsx
+new file mode 100644
+index 0000000..e5c6a24
+--- /dev/null
++++ b/src/features/registerbot/ChannelEditor.tsx
+@@ -0,0 +1,132 @@
++import { useId, useState, type FormEvent } from 'react';
++import { useTranslation } from 'react-i18next';
++import { Button } from '@/components/ui/Button';
++import { Select } from '@/components/ui/Select';
++import type { RegisterChannel, RegisterGateway } from './types';
++import styles from './RegisterbotPage.module.scss';
++
++interface Props {
++  channel: RegisterChannel;
++  gateway: RegisterGateway | null;
++  busy: boolean;
++  onSave: (channel: RegisterChannel) => Promise<boolean>;
++  onClose: () => void;
++}
++
++export function ChannelEditor({ channel, gateway, busy, onSave, onClose }: Props) {
++  const { t } = useTranslation();
++  const id = useId();
++  const [draft, setDraft] = useState(channel);
++  const [node, setNode] = useState(channel.nodes[0] ?? '');
++  const groupOptions =
++    gateway?.groups.map((item) => ({ label: item.name, value: item.name })) ?? [];
++  if (draft.group && !groupOptions.some(({ value }) => value === draft.group)) {
++    groupOptions.unshift({ label: draft.group, value: draft.group });
++  }
++  const nodes = gateway?.groups.find((item) => item.name === draft.group)?.nodes ?? draft.nodes;
++  const submit = async (event: FormEvent) => {
++    event.preventDefault();
++    if (await onSave({ ...draft, nodes: node ? [node] : [] })) onClose();
++  };
++  return (
++    <form className={styles.editor} onSubmit={(event) => void submit(event)}>
++      <div className={styles.fields}>
++        {(['id', 'name', 'provider'] as const).map((field) => (
++          <div className="form-group" key={field}>
++            <label htmlFor={`${id}-${field}`}>{t(`registerbot.channel_${field}`)}</label>
++            <input
++              id={`${id}-${field}`}
++              className="input"
++              value={draft[field]}
++              required
++              maxLength={80}
++              disabled={busy || (field === 'id' && Boolean(channel.id))}
++              pattern={field === 'id' ? '[a-zA-Z0-9_-]+' : undefined}
++              onChange={(event) => setDraft({ ...draft, [field]: event.target.value })}
++            />
++          </div>
++        ))}
++        <div className="form-group">
++          <label htmlFor={`${id}-concurrency`}>{t('registerbot.concurrency')}</label>
++          <input
++            id={`${id}-concurrency`}
++            type="number"
++            min={1}
++            max={8}
++            className="input"
++            value={draft.concurrency}
++            disabled={busy}
++            onChange={(event) => setDraft({ ...draft, concurrency: Number(event.target.value) })}
++          />
++        </div>
++        <div className="form-group">
++          <label htmlFor={`${id}-group`}>{t('registerbot.gateway_group')}</label>
++          <Select
++            id={`${id}-group`}
++            value={draft.group}
++            options={groupOptions}
++            disabled={busy}
++            onChange={(value) => {
++              setDraft({ ...draft, group: value });
++              setNode('');
++            }}
++          />
++        </div>
++        <div className="form-group">
++          <label htmlFor={`${id}-node`}>{t('registerbot.node')}</label>
++          <Select
++            id={`${id}-node`}
++            value={node}
++            disabled={busy}
++            options={[
++              { value: '', label: t('registerbot.auto_node') },
++              ...nodes.map((value) => ({ value, label: value })),
++            ]}
++            onChange={setNode}
++          />
++        </div>
++        {(['intervalSeconds', 'maxAttempts', 'targetKeys'] as const).map((field) => (
++          <div className="form-group" key={field}>
++            <label htmlFor={`${id}-${field}`}>{t(`registerbot.${field}`)}</label>
++            <input
++              id={`${id}-${field}`}
++              type="number"
++              min={field === 'maxAttempts' ? 1 : 0}
++              max={field === 'maxAttempts' ? 5 : 10000}
++              className="input"
++              value={draft[field]}
++              disabled={busy}
++              onChange={(event) => setDraft({ ...draft, [field]: Number(event.target.value) })}
++            />
++          </div>
++        ))}
++      </div>
++      <div className={styles.actions}>
++        <label className={styles.check}>
++          <input
++            type="checkbox"
++            checked={draft.enabled}
++            disabled={busy}
++            onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
++          />
++          {t('registerbot.enabled')}
++        </label>
++        <label className={styles.check}>
++          <input
++            type="checkbox"
++            checked={draft.manualMode}
++            disabled={busy}
++            onChange={(event) => setDraft({ ...draft, manualMode: event.target.checked })}
++          />
++          {t('registerbot.manual_mode')}
++        </label>
++        <Button type="submit" loading={busy}>
++          {t('registerbot.save_channel')}
++        </Button>
++        <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
++          {t('registerbot.close')}
++        </Button>
++      </div>
++    </form>
++  );
++}
+diff --git a/src/features/registerbot/RegisterbotPage.module.scss b/src/features/registerbot/RegisterbotPage.module.scss
+new file mode 100644
+index 0000000..6942561
+--- /dev/null
++++ b/src/features/registerbot/RegisterbotPage.module.scss
+@@ -0,0 +1,258 @@
++.page,
++.workspace {
++  display: flex;
++  flex-direction: column;
++  gap: $spacing-lg;
++  min-width: 0;
++}
++.header {
++  display: flex;
++  align-items: flex-start;
++  gap: $spacing-md;
++  color: var(--text-primary);
++  svg {
++    flex: none;
++    margin-top: $spacing-xs;
++    color: var(--text-secondary);
++  }
++  h1 {
++    font-size: clamp(20px, 3vw, 26px);
++    font-weight: 700;
++  }
++  p {
++    margin-top: $spacing-xs;
++    color: var(--text-secondary);
++    font-size: 13px;
++  }
++}
++.statusBar,
++.actions,
++.rowHeader,
++.runHeader {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  gap: $spacing-sm;
++}
++.statusBar {
++  gap: $spacing-md;
++  font-size: 13px;
++}
++.columns {
++  display: grid;
++  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
++  gap: $spacing-md;
++  align-items: start;
++  @media (max-width: $breakpoint-tablet) {
++    grid-template-columns: minmax(0, 1fr);
++  }
++}
++.card {
++  min-width: 0;
++}
++.hint {
++  font-size: 13px;
++  color: var(--text-secondary);
++  overflow-wrap: anywhere;
++}
++.mono {
++  font-family: $font-mono;
++  font-size: 12px;
++  overflow-wrap: anywhere;
++}
++.accounts {
++  resize: vertical;
++  font-family: $font-mono;
++  font-size: 13px;
++}
++.batchForm {
++  margin-top: $spacing-md;
++}
++.destination {
++  display: flex;
++  flex-wrap: wrap;
++  gap: $spacing-sm;
++  margin-bottom: $spacing-md;
++  color: var(--text-secondary);
++  font-size: 13px;
++  strong {
++    color: var(--text-primary);
++  }
++}
++.gateway {
++  display: grid;
++  grid-template-columns: auto minmax(0, 1fr);
++  gap: $spacing-sm $spacing-md;
++  font-size: 13px;
++  margin-bottom: $spacing-md;
++  dt {
++    color: var(--text-secondary);
++  }
++  dd {
++    margin: 0;
++    overflow-wrap: anywhere;
++  }
++}
++.ladder,
++.notice {
++  margin-top: $spacing-md;
++  padding: $spacing-sm $spacing-md;
++  background: var(--bg-tertiary);
++  border: 0.5px solid var(--border-color);
++  border-radius: $radius-md;
++  color: var(--text-secondary);
++  font-size: 13px;
++  overflow-wrap: anywhere;
++}
++.notice {
++  color: var(--amber-text);
++  border-color: var(--amber-30);
++  background: var(--amber-10);
++}
++.badge {
++  display: inline-flex;
++  padding: 2px 8px;
++  border: 0.5px solid var(--border-color);
++  border-radius: $radius-full;
++  background: var(--bg-tertiary);
++  color: var(--text-secondary);
++  font-size: 12px;
++  white-space: nowrap;
++  &[data-state='done'],
++  &[data-state='completed'],
++  &[data-state='live'] {
++    background: var(--success-badge-bg);
++    color: var(--success-badge-text);
++    border-color: var(--success-badge-border);
++  }
++  &[data-state='failed'],
++  &[data-state='cancelled'] {
++    background: var(--failure-badge-bg);
++    color: var(--failure-badge-text);
++    border-color: var(--failure-badge-border);
++  }
++  &[data-state='waiting_human'],
++  &[data-state='reconnecting'],
++  &[data-state='degraded'] {
++    background: var(--amber-10);
++    color: var(--amber-text);
++    border-color: var(--amber-30);
++  }
++}
++.run {
++  padding: $spacing-md 0;
++  &:not(:last-child) {
++    border-bottom: 0.5px solid var(--border-color);
++  }
++}
++.runHeader {
++  justify-content: space-between;
++  strong {
++    font-size: 14px;
++  }
++  p {
++    color: var(--text-secondary);
++    margin-top: $spacing-xs;
++  }
++}
++.metrics {
++  display: grid;
++  grid-template-columns: repeat(5, minmax(0, 1fr));
++  margin: $spacing-md 0;
++  gap: $spacing-sm;
++  div {
++    display: flex;
++    flex-direction: column;
++    gap: $spacing-xs;
++    padding: $spacing-sm;
++    background: var(--bg-tertiary);
++    border-radius: $radius-sm;
++  }
++  span {
++    font-size: 12px;
++    color: var(--text-secondary);
++  }
++  strong {
++    font-size: 20px;
++    font-variant-numeric: tabular-nums;
++  }
++  @media (max-width: $breakpoint-mobile) {
++    grid-template-columns: repeat(3, minmax(0, 1fr));
++  }
++}
++.progress {
++  display: block;
++  width: 100%;
++  height: 8px;
++  margin-bottom: $spacing-md;
++  accent-color: var(--primary-color);
++}
++.rows {
++  max-height: 340px;
++  overflow-y: auto;
++  margin-top: $spacing-md;
++  li {
++    padding: $spacing-sm 0;
++    border-top: 0.5px solid var(--border-color);
++  }
++}
++.rowHeader {
++  font-size: 13px;
++}
++.manual {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  gap: $spacing-sm;
++  margin-top: $spacing-sm;
++  label {
++    font-size: 12px;
++    color: var(--text-secondary);
++  }
++  input {
++    width: min(100%, 280px);
++  }
++}
++.timeline {
++  max-height: 360px;
++  overflow-y: auto;
++  li {
++    display: flex;
++    flex-wrap: wrap;
++    align-items: baseline;
++    gap: $spacing-sm;
++    padding: $spacing-sm 0;
++    border-bottom: 0.5px solid var(--border-color);
++    font-size: 13px;
++  }
++  time {
++    color: var(--text-secondary);
++    font-variant-numeric: tabular-nums;
++    flex-shrink: 0;
++  }
++}
++.eventText {
++  flex: 1;
++  min-width: 120px;
++  overflow-wrap: anywhere;
++}
++.editor {
++  margin-top: $spacing-md;
++  padding-top: $spacing-md;
++  border-top: 0.5px solid var(--border-color);
++}
++.fields {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  gap: 0 $spacing-md;
++  @media (max-width: $breakpoint-mobile) {
++    grid-template-columns: minmax(0, 1fr);
++  }
++}
++.check {
++  display: inline-flex;
++  align-items: center;
++  gap: $spacing-xs;
++  font-size: 13px;
++  color: var(--text-secondary);
++}
+diff --git a/src/features/registerbot/RegisterbotPage.tsx b/src/features/registerbot/RegisterbotPage.tsx
+new file mode 100644
+index 0000000..7741130
+--- /dev/null
++++ b/src/features/registerbot/RegisterbotPage.tsx
+@@ -0,0 +1,451 @@
++import { useId, useRef, useState, type FormEvent } from 'react';
++import { useTranslation } from 'react-i18next';
++import { usePageTransitionLayer } from '@/components/common/PageTransitionLayer';
++import { Button } from '@/components/ui/Button';
++import { Card } from '@/components/ui/Card';
++import { EmptyState } from '@/components/ui/EmptyState';
++import { IconBot } from '@/components/ui/icons';
++import { Select } from '@/components/ui/Select';
++import { apiClient } from '@/services/api/client';
++import { useAuthStore } from '@/stores';
++import { ChannelEditor } from './ChannelEditor';
++import { useRegisterbot } from './useRegisterbot';
++import type { RegisterChannel, RegisterRow, RegisterRun, RunAction } from './types';
++import styles from './RegisterbotPage.module.scss';
++
++function Stage({ value }: { value: string }) {
++  const { t } = useTranslation();
++  return (
++    <span className={styles.badge} data-state={value}>
++      {t(`registerbot.stage.${value}`, { defaultValue: value })}
++    </span>
++  );
++}
++
++function ManualKey({
++  run,
++  row,
++  busy,
++  submitKey,
++}: {
++  run: string;
++  row: RegisterRow;
++  busy: boolean;
++  submitKey: (run: string, row: string, key: string) => Promise<boolean>;
++}) {
++  const { t } = useTranslation();
++  const id = useId();
++  const keyRef = useRef<HTMLInputElement>(null);
++  const submit = async (event: FormEvent) => {
++    event.preventDefault();
++    const key = keyRef.current?.value.trim() ?? '';
++    if (!key) return;
++    if (keyRef.current) keyRef.current.value = '';
++    await submitKey(run, row.id, key);
++  };
++  return (
++    <form className={styles.manual} onSubmit={(event) => void submit(event)}>
++      <label htmlFor={id}>{t('registerbot.manual_key')}</label>
++      <input
++        id={id}
++        ref={keyRef}
++        className="input"
++        type="password"
++        autoComplete="new-password"
++        spellCheck={false}
++        required
++        disabled={busy}
++        placeholder="sk-…"
++      />
++      <Button type="submit" size="sm" variant="secondary" disabled={busy}>
++        {t('registerbot.verify_import')}
++      </Button>
++    </form>
++  );
++}
++
++function RunCard({
++  run,
++  busy,
++  action,
++  submitKey,
++}: {
++  run: RegisterRun;
++  busy: boolean;
++  action: (run: string, action: RunAction) => Promise<boolean>;
++  submitKey: (run: string, row: string, key: string) => Promise<boolean>;
++}) {
++  const { t, i18n } = useTranslation();
++  const active = ['queued', 'running', 'waiting_human', 'paused'].includes(run.status);
++  const complete = run.counters.done + run.counters.failed + run.counters.skipped;
++  return (
++    <article className={styles.run}>
++      <div className={styles.runHeader}>
++        <div>
++          <strong>{run.channel}</strong>
++          <p className={styles.mono}>{run.id}</p>
++        </div>
++        <Stage value={run.status} />
++      </div>
++      <div className={styles.metrics}>
++        {(['total', 'done', 'failed', 'waiting', 'pendingWrite'] as const).map((key) => (
++          <div key={key}>
++            <span>{t(`registerbot.counter.${key}`)}</span>
++            <strong>{run.counters[key]}</strong>
++          </div>
++        ))}
++      </div>
++      <progress
++        max={Math.max(1, run.counters.total)}
++        value={complete}
++        className={styles.progress}
++        aria-label={t('registerbot.progress', { done: complete, total: run.counters.total })}
++      />
++      <div className={styles.actions}>
++        {active && run.status !== 'paused' && (
++          <Button
++            size="sm"
++            variant="secondary"
++            disabled={busy}
++            onClick={() => void action(run.id, 'pause')}
++          >
++            {t('registerbot.pause')}
++          </Button>
++        )}
++        {['paused', 'waiting_human'].includes(run.status) && (
++          <Button
++            size="sm"
++            variant="secondary"
++            disabled={busy}
++            onClick={() => void action(run.id, 'resume')}
++          >
++            {t('registerbot.resume')}
++          </Button>
++        )}
++        {(run.counters.failed > 0 || run.counters.pendingWrite > 0) && (
++          <Button
++            size="sm"
++            variant="secondary"
++            disabled={busy}
++            onClick={() => void action(run.id, 'retry')}
++          >
++            {t('registerbot.retry')}
++          </Button>
++        )}
++        {active && (
++          <Button
++            size="sm"
++            variant="danger"
++            disabled={busy}
++            onClick={() => void action(run.id, 'cancel')}
++          >
++            {t('registerbot.cancel')}
++          </Button>
++        )}
++        <time className={styles.hint}>{new Date(run.createdAt).toLocaleString(i18n.language)}</time>
++      </div>
++      {run.counters.waiting > 0 && <p className={styles.notice}>{t('registerbot.handoff_hint')}</p>}
++      <ul className={styles.rows} aria-label={t('registerbot.accounts')}>
++        {run.rows.map((row) => (
++          <li key={row.id}>
++            <div className={styles.rowHeader}>
++              <span className={styles.mono}>
++                {row.account || t('registerbot.row', { line: row.line })}
++              </span>
++              <Stage value={row.stage} />
++              <span className={styles.hint}>
++                {t('registerbot.attempt', { attempt: row.attempt })}
++              </span>
++              {row.maskedKey && <span className={styles.mono}>{row.maskedKey}</span>}
++            </div>
++            {row.reason && (
++              <p className={styles.hint}>
++                {t(`registerbot.reason.${row.reason}`, { defaultValue: row.reason })}
++              </p>
++            )}
++            {row.stage === 'waiting_human' && (
++              <ManualKey run={run.id} row={row} busy={busy} submitKey={submitKey} />
++            )}
++          </li>
++        ))}
++      </ul>
++    </article>
++  );
++}
++
++function RegisterbotWorkbench() {
++  const { t, i18n } = useTranslation();
++  const id = useId();
++  const work = useRegisterbot();
++  const sourceRef = useRef<HTMLTextAreaElement>(null);
++  const [hasInput, setHasInput] = useState(false);
++  const [selection, setSelection] = useState('');
++  const [editor, setEditor] = useState<RegisterChannel | null>(null);
++  const channels = work.snapshot?.channels ?? [];
++  const enabled = channels.filter((channel) => channel.enabled);
++  const selected = channels.find((channel) => channel.id === selection) ?? enabled[0];
++  const options = channels.map((channel) => ({
++    value: channel.id,
++    label: channel.name || channel.id,
++  }));
++  const visibleRuns = (work.snapshot?.runs ?? [])
++    .filter((run) => !selected || run.channel === selected.id)
++    .sort((a, b) => b.createdAt - a.createdAt);
++  const visibleEvents = work.events.filter(
++    (event) => !selected || !event.channel || event.channel === selected.id
++  );
++  const latestBrowser = [...visibleEvents].reverse().find((event) => event.browser)?.browser;
++  const submit = async (event: FormEvent) => {
++    event.preventDefault();
++    if (!selected?.enabled || work.busy || !sourceRef.current) return;
++    const accounts = sourceRef.current.value;
++    if (!accounts.trim()) return;
++    sourceRef.current.value = '';
++    setHasInput(false);
++    await work.start(selected.id, accounts);
++  };
++
++  if (!work.snapshot) {
++    return work.error ? (
++      <EmptyState
++        title={t('registerbot.load_failed')}
++        description={t('registerbot.backend_required')}
++        action={
++          <Button variant="secondary" onClick={() => void work.reload()}>
++            {t('registerbot.reload')}
++          </Button>
++        }
++      />
++    ) : (
++      <p role="status" className={styles.hint}>
++        {t('registerbot.loading')}
++      </p>
++    );
++  }
++  return (
++    <div className={styles.workspace}>
++      <div className={styles.statusBar} role="status">
++        <span className={styles.badge} data-state={work.stream}>
++          {t(`registerbot.stream.${work.stream}`)}
++        </span>
++        <span>
++          {t('registerbot.gateway')}:{' '}
++          {work.gateway
++            ? t(`registerbot.mode.${work.gateway.mode}`, { defaultValue: work.gateway.mode })
++            : t('registerbot.unknown')}
++        </span>
++        <span>
++          {t('registerbot.browser')}: {latestBrowser || t('registerbot.browser_on_demand')}
++        </span>
++        <span className={styles.hint}>{t('registerbot.live_hint')}</span>
++      </div>
++      {work.error && (
++        <div className="error-box" role="alert">
++          {t('registerbot.operation_failed')}
++        </div>
++      )}
++      {!work.snapshot.enabled && <p className={styles.notice}>{t('registerbot.disabled')}</p>}
++      {work.snapshot.storageError && (
++        <p className={styles.notice} role="alert">
++          {t('registerbot.storage_error')}
++        </p>
++      )}
++      <div className={styles.columns}>
++        <Card className={styles.card} title={t('registerbot.new_batch')}>
++          <div className="form-group">
++            <label htmlFor={`${id}-channel`}>{t('registerbot.channel')}</label>
++            <Select
++              id={`${id}-channel`}
++              value={selected?.id ?? ''}
++              options={options}
++              onChange={(value) => {
++                setSelection(value);
++                setEditor(null);
++              }}
++              disabled={work.busy}
++            />
++          </div>
++          <div className={styles.actions}>
++            <Button
++              size="sm"
++              variant="secondary"
++              disabled={!selected || work.busy}
++              onClick={() => selected && setEditor(selected)}
++            >
++              {t('registerbot.edit_channel')}
++            </Button>
++            <Button
++              size="sm"
++              variant="secondary"
++              disabled={!channels[0] || work.busy}
++              onClick={() => setEditor({ ...channels[0], id: '', name: '', nodes: [] })}
++            >
++              {t('registerbot.add_channel')}
++            </Button>
++          </div>
++          {editor ? (
++            <ChannelEditor
++              key={editor.id}
++              channel={editor}
++              gateway={work.gateway}
++              busy={work.busy}
++              onSave={work.saveChannel}
++              onClose={() => setEditor(null)}
++            />
++          ) : (
++            <form className={styles.batchForm} onSubmit={(event) => void submit(event)}>
++              <div className="form-group">
++                <label htmlFor={`${id}-accounts`}>{t('registerbot.accounts')}</label>
++                <textarea
++                  id={`${id}-accounts`}
++                  ref={sourceRef}
++                  rows={6}
++                  className={styles.accounts}
++                  disabled={work.busy || !selected?.enabled || !work.snapshot.enabled}
++                  autoComplete="off"
++                  autoCapitalize="off"
++                  spellCheck={false}
++                  maxLength={257000}
++                  aria-describedby={`${id}-hint`}
++                  onInput={(event) => setHasInput(Boolean(event.currentTarget.value.trim()))}
++                />
++                <p id={`${id}-hint`} className="hint">
++                  {t('registerbot.accounts_hint')}
++                </p>
++              </div>
++              <div className={styles.destination}>
++                <span>{t('registerbot.destination')}</span>
++                <strong>{selected?.provider || '—'}</strong>
++                <span className={styles.mono}>{selected?.proxyUrl}</span>
++              </div>
++              <Button
++                type="submit"
++                loading={work.busy}
++                disabled={!hasInput || !selected?.enabled || !work.snapshot.enabled}
++              >
++                {t('registerbot.start')}
++              </Button>
++            </form>
++          )}
++        </Card>
++        <Card className={styles.card} title={t('registerbot.gateway_title')}>
++          <div className={styles.actions}>
++            <Button
++              size="sm"
++              variant="secondary"
++              disabled={work.busy}
++              onClick={() => void work.probeGateway()}
++            >
++              {t('registerbot.probe_gateway')}
++            </Button>
++          </div>
++          {work.gateway ? (
++            <>
++              <dl className={styles.gateway}>
++                <dt>{t('registerbot.proxy')}</dt>
++                <dd>{work.gateway.proxyUrl || '—'}</dd>
++                <dt>{t('registerbot.controller')}</dt>
++                <dd>{work.gateway.controllerUrl || '—'}</dd>
++                <dt>{t('registerbot.sharing')}</dt>
++                <dd>
++                  {t(`registerbot.mode.${work.gateway.shareMode}`, {
++                    defaultValue: work.gateway.shareMode,
++                  })}
++                </dd>
++                <dt>{t('registerbot.gateway_group')}</dt>
++                <dd>{selected?.group || '—'}</dd>
++                <dt>{t('registerbot.node')}</dt>
++                <dd>{selected?.nodes.join(', ') || t('registerbot.auto_node')}</dd>
++              </dl>
++              <p className={styles.hint}>{t('registerbot.gateway_hint')}</p>
++              {work.gateway.warnings.map((warning) => (
++                <p key={warning} className={styles.notice}>
++                  {warning}
++                </p>
++              ))}
++              {work.gateway.error && <p className={styles.notice}>{work.gateway.error}</p>}
++            </>
++          ) : (
++            <EmptyState
++              title={t('registerbot.gateway_unavailable')}
++              description={t('registerbot.degrade_hint')}
++            />
++          )}
++          <p className={styles.ladder}>{t('registerbot.ladders')}</p>
++        </Card>
++      </div>
++      <Card title={t('registerbot.runs_title')} className={styles.card}>
++        {visibleRuns.length ? (
++          visibleRuns.map((run) => (
++            <RunCard
++              key={run.id}
++              run={run}
++              busy={work.busy}
++              action={work.action}
++              submitKey={work.submitKey}
++            />
++          ))
++        ) : (
++          <EmptyState
++            title={t('registerbot.no_runs')}
++            description={t('registerbot.no_runs_hint')}
++          />
++        )}
++      </Card>
++      <Card title={t('registerbot.events_title')} className={styles.card}>
++        {visibleEvents.length ? (
++          <ol
++            className={styles.timeline}
++            role="log"
++            aria-live="polite"
++            aria-relevant="additions"
++            aria-label={t('registerbot.events_title')}
++          >
++            {visibleEvents.map((event) => (
++              <li key={event.seq} data-level={event.level}>
++                <time>{new Date(event.at).toLocaleTimeString(i18n.language)}</time>
++                <Stage value={event.stage} />
++                <span className={styles.eventText}>
++                  {event.message
++                    ? t(`registerbot.reason.${event.message}`, { defaultValue: event.message })
++                    : event.account}
++                </span>
++                {event.node && <span className={styles.hint}>{event.node}</span>}
++                {event.browser && <span className={styles.hint}>{event.browser}</span>}
++              </li>
++            ))}
++          </ol>
++        ) : (
++          <EmptyState title={t('registerbot.no_events')} />
++        )}
++      </Card>
++    </div>
++  );
++}
++
++export function RegisterbotPage() {
++  const { t } = useTranslation();
++  const current = usePageTransitionLayer()?.isCurrentLayer ?? true;
++  const revision = useAuthStore((state) =>
++    state.isAuthenticated && state.connectionStatus === 'connected'
++      ? apiClient.getConnectionRevision()
++      : -1
++  );
++  return (
++    <div className={styles.page}>
++      <header className={styles.header}>
++        <IconBot size={24} />
++        <div>
++          <h1>{t('registerbot.title')}</h1>
++          <p>{t('registerbot.description')}</p>
++        </div>
++      </header>
++      {current &&
++        (revision >= 0 ? (
++          <RegisterbotWorkbench key={revision} />
++        ) : (
++          <EmptyState title={t('notification.connection_required')} />
++        ))}
++    </div>
++  );
++}
+diff --git a/src/features/registerbot/stream.ts b/src/features/registerbot/stream.ts
+new file mode 100644
+index 0000000..22e0a8f
+--- /dev/null
++++ b/src/features/registerbot/stream.ts
+@@ -0,0 +1,75 @@
++export interface StreamFrame {
++  id: string;
++  event: string;
++  data: string;
++}
++
++/** Parse frames incrementally, including UTF-8/chunk boundaries and CRLF. */
++export function createEventDecoder(accept: (frame: StreamFrame) => void) {
++  let pending = '';
++  return (chunk: string) => {
++    pending += chunk;
++    if (pending.length > 1024 * 1024) throw new Error('Event frame is too large');
++    let boundary: RegExpExecArray | null;
++    while ((boundary = /\r?\n\r?\n/.exec(pending))) {
++      const block = pending.slice(0, boundary.index);
++      pending = pending.slice(boundary.index + boundary[0].length);
++      const frame: StreamFrame = { id: '', event: 'message', data: '' };
++      const data: string[] = [];
++      for (const line of block.split(/\r?\n/)) {
++        if (!line || line.startsWith(':')) continue;
++        const colon = line.indexOf(':');
++        const field = colon < 0 ? line : line.slice(0, colon);
++        const value = colon < 0 ? '' : line.slice(colon + 1).replace(/^ /, '');
++        if (field === 'data') data.push(value);
++        if (field === 'id' && !value.includes('\0')) frame.id = value;
++        if (field === 'event') frame.event = value;
++      }
++      if (data.length) accept({ ...frame, data: data.join('\n') });
++    }
++  };
++}
++
++export async function consumeEventStream(
++  stream: ReadableStream<Uint8Array>,
++  signal: AbortSignal,
++  accept: (frame: StreamFrame) => void
++) {
++  const reader = stream.getReader();
++  const decoder = new TextDecoder();
++  const decode = createEventDecoder((frame) => {
++    if (!signal.aborted) accept(frame);
++  });
++  const cancel = () => {
++    void reader.cancel().catch(() => undefined);
++  };
++  signal.addEventListener('abort', cancel, { once: true });
++  try {
++    while (!signal.aborted) {
++      const { value, done } = await reader.read();
++      if (done) break;
++      decode(decoder.decode(value, { stream: true }));
++    }
++    decode(decoder.decode());
++  } finally {
++    signal.removeEventListener('abort', cancel);
++    await reader.cancel().catch(() => undefined);
++    reader.releaseLock();
++  }
++}
++
++export function waitForReconnect(signal: AbortSignal, delay: number): Promise<void> {
++  return new Promise((resolve) => {
++    if (signal.aborted) {
++      resolve();
++      return;
++    }
++    const finish = () => {
++      clearTimeout(timer);
++      signal.removeEventListener('abort', finish);
++      resolve();
++    };
++    const timer = setTimeout(finish, delay);
++    signal.addEventListener('abort', finish, { once: true });
++  });
++}
+diff --git a/src/features/registerbot/types.ts b/src/features/registerbot/types.ts
+new file mode 100644
+index 0000000..7d2193a
+--- /dev/null
++++ b/src/features/registerbot/types.ts
+@@ -0,0 +1,93 @@
++export interface RegisterChannel {
++  id: string;
++  kind: string;
++  name: string;
++  enabled: boolean;
++  provider: string;
++  proxyUrl: string;
++  concurrency: number;
++  group: string;
++  nodes: string[];
++  rotateNode: boolean;
++  intervalSeconds: number;
++  stepDelayMillis: number;
++  targetKeys: number;
++  maxAttempts: number;
++  startUrl: string;
++  manualMode: boolean;
++}
++
++export interface RegisterCounters {
++  total: number;
++  queued: number;
++  running: number;
++  done: number;
++  failed: number;
++  skipped: number;
++  waiting: number;
++  pendingWrite: number;
++  harvested: number;
++}
++
++export interface RegisterRow {
++  id: string;
++  line: number;
++  account: string;
++  stage: string;
++  attempt: number;
++  maskedKey: string;
++  reason: string;
++  updatedAt: number;
++}
++
++export interface RegisterRun {
++  id: string;
++  channel: string;
++  status: string;
++  createdAt: number;
++  updatedAt: number;
++  rows: RegisterRow[];
++  counters: RegisterCounters;
++}
++
++export interface RegisterEvent {
++  seq: number;
++  at: number;
++  channel: string;
++  run: string;
++  account: string;
++  stage: string;
++  level: string;
++  message: string;
++  node: string;
++  exitIp: string;
++  browser: string;
++}
++
++export interface GatewayGroup {
++  name: string;
++  type: string;
++  now: string;
++  nodes: string[];
++}
++
++export interface RegisterGateway {
++  mode: string;
++  proxyUrl: string;
++  controllerUrl: string;
++  shareMode: string;
++  groups: GatewayGroup[];
++  warnings: string[];
++  error: string;
++}
++
++export interface RegisterSnapshot {
++  enabled: boolean;
++  storageError: boolean;
++  channels: RegisterChannel[];
++  runs: RegisterRun[];
++  cursor: number;
++}
++
++export type RunAction = 'pause' | 'resume' | 'retry' | 'cancel';
++export type StreamState = 'connecting' | 'live' | 'reconnecting';
+diff --git a/src/features/registerbot/useRegisterbot.ts b/src/features/registerbot/useRegisterbot.ts
+new file mode 100644
+index 0000000..2056e9c
+--- /dev/null
++++ b/src/features/registerbot/useRegisterbot.ts
+@@ -0,0 +1,159 @@
++import { useCallback, useEffect, useRef, useState } from 'react';
++import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
++import { createRegisterbotClient } from '@/services/api/registerbot';
++import { useConfigStore } from '@/stores';
++import { waitForReconnect } from './stream';
++import type {
++  RegisterChannel,
++  RegisterEvent,
++  RegisterGateway,
++  RegisterSnapshot,
++  RunAction,
++  StreamState,
++} from './types';
++
++type Client = ReturnType<typeof createRegisterbotClient>;
++
++export function useRegisterbot() {
++  const clientRef = useRef<Client | null>(null);
++  const loadVersion = useRef(0);
++  const busyRef = useRef(false);
++  const [snapshot, setSnapshot] = useState<RegisterSnapshot | null>(null);
++  const [gateway, setGateway] = useState<RegisterGateway | null>(null);
++  const [events, setEvents] = useState<RegisterEvent[]>([]);
++  const [stream, setStream] = useState<StreamState>('connecting');
++  const [error, setError] = useState(false);
++  const [busy, setBusy] = useState(false);
++
++  const refresh = useCallback(async () => {
++    const client = clientRef.current;
++    if (!client?.isCurrent()) return;
++    const version = ++loadVersion.current;
++    try {
++      const value = await client.snapshot();
++      if (!client.isCurrent() || version !== loadVersion.current) return;
++      setSnapshot(value);
++      setError(false);
++    } catch {
++      if (client.isCurrent() && version === loadVersion.current) setError(true);
++    }
++  }, []);
++
++  const refreshGateway = useCallback(async () => {
++    const client = clientRef.current;
++    if (!client?.isCurrent()) return;
++    try {
++      const value = await client.gateway();
++      if (client.isCurrent()) setGateway(value);
++    } catch {
++      if (client.isCurrent()) setGateway(null);
++    }
++  }, []);
++
++  const reload = useCallback(async () => {
++    await Promise.all([refresh(), refreshGateway()]);
++  }, [refresh, refreshGateway]);
++  useHeaderRefresh(reload);
++
++  useEffect(() => {
++    const controller = new AbortController();
++    const client = createRegisterbotClient(() => clientRef.current === client, controller.signal);
++    clientRef.current = client;
++    let cursor = 0;
++    let failures = 0;
++    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
++    const scheduleRefresh = () => {
++      if (refreshTimer !== undefined) return;
++      refreshTimer = setTimeout(() => {
++        refreshTimer = undefined;
++        if (client.isCurrent()) void refresh();
++      }, 180);
++    };
++    void reload();
++    const watch = async () => {
++      while (client.isCurrent()) {
++        try {
++          await client.events(
++            cursor,
++            (event) => {
++              if (!client.isCurrent() || event.seq <= cursor) return;
++              cursor = event.seq;
++              setEvents((previous) => [...previous, event].slice(-300));
++              scheduleRefresh();
++              if (event.stage === 'done' || event.stage === 'writing_key') {
++                useConfigStore.getState().clearCache('openai-compatibility');
++              }
++              if (event.stage.includes('gateway') || event.stage === 'pinning')
++                void refreshGateway();
++            },
++            (nextCursor) => {
++              cursor = nextCursor;
++              setEvents([]);
++              void refresh();
++            },
++            () => {
++              if (client.isCurrent()) {
++                failures = 0;
++                setStream('live');
++              }
++            }
++          );
++        } catch {
++          // A dropped connection resumes from the last accepted event, never a new batch.
++        }
++        if (!client.isCurrent()) return;
++        setStream('reconnecting');
++        await refresh();
++        await waitForReconnect(controller.signal, Math.min(1000 * 2 ** failures++, 15000));
++      }
++    };
++    void watch();
++    return () => {
++      controller.abort();
++      if (refreshTimer !== undefined) clearTimeout(refreshTimer);
++      if (clientRef.current === client) clientRef.current = null;
++    };
++  }, [refresh, refreshGateway, reload]);
++
++  const mutate = useCallback(
++    async (operation: (client: Client) => Promise<unknown>) => {
++      const client = clientRef.current;
++      if (!client?.isCurrent() || busyRef.current) return false;
++      busyRef.current = true;
++      setBusy(true);
++      setError(false);
++      try {
++        await operation(client);
++        if (!client.isCurrent()) return false;
++        await refresh();
++        return true;
++      } catch {
++        if (client.isCurrent()) setError(true);
++        return false;
++      } finally {
++        busyRef.current = false;
++        if (client.isCurrent()) setBusy(false);
++      }
++    },
++    [refresh]
++  );
++
++  return {
++    snapshot,
++    gateway,
++    events,
++    stream,
++    error,
++    busy,
++    reload,
++    start: (channel: string, accounts: string) =>
++      mutate((client) => client.start(channel, accounts)),
++    action: (run: string, action: RunAction) => mutate((client) => client.action(run, action)),
++    submitKey: (run: string, row: string, key: string) =>
++      mutate((client) => client.submitKey(run, row, key)),
++    saveChannel: (channel: RegisterChannel) => mutate((client) => client.saveChannel(channel)),
++    probeGateway: async () => {
++      if (await mutate((client) => client.probeGateway())) await refreshGateway();
++    },
++  };
++}
+diff --git a/src/i18n/locales/en.json b/src/i18n/locales/en.json
+index 4d6711a..82534ea 100644
+--- a/src/i18n/locales/en.json
++++ b/src/i18n/locales/en.json
+@@ -2622,5 +2622,148 @@
+     "remove_pattern": "Remove regex row {{row}}",
+     "move_up": "Move regex row {{row}} up",
+     "move_down": "Move regex row {{row}} down"
++  },
++  "registerbot": {
++    "stage": {
++      "network_error": "Network error",
++      "email": "Entering account",
++      "password": "Entering password",
++      "choose_account": "Choosing account",
++      "consent": "Confirming consent",
++      "google": "Opening Google authorization",
++      "speedbump": "Confirming Workspace terms",
++      "key": "Key captured",
++      "reveal": "Revealing key",
++      "dashboard": "Opening dashboard",
++      "challenge": "Additional verification",
++      "blocked": "Operator assistance required",
++      "invalid_credentials": "Credentials rejected",
++      "manual": "Manual continuation",
++      "loading": "Waiting for page",
++      "gateway_probe": "Probing gateway",
++      "gateway_degraded": "Gateway fallback",
++      "browser_degraded": "Browser fallback",
++      "settings_updated": "Settings saved",
++      "storage_error": "State storage failed",
++      "queued": "Queued",
++      "running": "Running",
++      "validating": "Validating",
++      "pinning": "Pinning gateway",
++      "browser_start": "Starting browser",
++      "google_login": "Google authorization",
++      "waiting_human": "Waiting for you",
++      "capturing_key": "Reading key",
++      "verifying_key": "Verifying key",
++      "writing_key": "Importing key",
++      "pending_write": "Pending import",
++      "done": "Imported",
++      "completed": "Completed",
++      "failed": "Failed",
++      "skipped": "Skipped",
++      "paused": "Paused",
++      "cancelled": "Cancelled",
++      "partial": "Partially completed",
++      "degraded": "Fallback active",
++      "gateway": "Gateway",
++      "browser": "Browser"
++    },
++    "reason": {
++      "verify_or_write_failed": "Key verification or import failed. The captured key is retained for retry.",
++      "manual_action_required": "Complete the browser step or submit a key.",
++      "provider_missing": "The destination provider is missing or ambiguous.",
++      "verification_failed": "Key verification failed; the key was not imported.",
++      "config_conflict": "Configuration changed. Retry to merge against the current version.",
++      "write_failed": "Import was not confirmed; the captured key is retained for retry.",
++      "import_unavailable": "The provider importer is unavailable.",
++      "restart_resume_required": "Server restarted. Continue to resume the saved queue.",
++      "operator_paused": "Paused by the operator.",
++      "operator_cancelled": "Cancelled by the operator.",
++      "attempt_failed": "The attempt failed. Check the event log before retrying.",
++      "target_reached": "Skipped because the channel key target was reached.",
++      "invalid": "Invalid account|password row.",
++      "duplicate": "Duplicate account in this batch."
++    },
++    "storage_error": "State persistence failed. Check server storage before starting or resuming a batch.",
++    "probe_gateway": "Probe gateway and nodes",
++    "nav": "Registration bot",
++    "nav_hint": "Channel queues and live progress",
++    "title": "Registration bot",
++    "description": "Queue accounts, follow authorization, and verify keys before importing into CPA.",
++    "channel": "Channel",
++    "new_batch": "New batch",
++    "accounts": "Accounts",
++    "accounts_hint": "One account|password per line, up to 500 rows. Input is cleared after submission; only masked identities appear in progress.",
++    "destination": "Import destination",
++    "start": "Start batch",
++    "loading": "Loading registration state…",
++    "load_failed": "Registration module unavailable",
++    "backend_required": "Check the connection and that this backend includes the registerbot module.",
++    "operation_failed": "The operation was not confirmed. Check live events and reload before resubmitting.",
++    "reload": "Reload",
++    "disabled": "The registration engine is disabled in backend settings.",
++    "gateway": "Gateway",
++    "browser": "Browser",
++    "browser_on_demand": "Starts on demand",
++    "unknown": "Unknown",
++    "live_hint": "Events reconnect automatically; batches continue on the server.",
++    "gateway_title": "Gateway and browser",
++    "proxy": "Proxy",
++    "controller": "Controller",
++    "sharing": "Sharing policy",
++    "gateway_group": "Proxy group",
++    "node": "Pinned node",
++    "auto_node": "Automatic selection",
++    "gateway_hint": "A shared selector uses a lease while an account runs; it does not provide simultaneous independent exits.",
++    "gateway_unavailable": "Gateway status unavailable",
++    "degrade_hint": "The batch may continue on its fallback path; see events for the actual mode.",
++    "ladders": "Gateway: controller → proxy only → direct. Browser: embedded → attached → system → manual.",
++    "edit_channel": "Edit channel",
++    "add_channel": "Add channel",
++    "channel_id": "Channel ID",
++    "channel_name": "Channel name",
++    "channel_provider": "Provider group",
++    "concurrency": "Concurrency",
++    "intervalSeconds": "Account interval (seconds)",
++    "maxAttempts": "Maximum attempts",
++    "targetKeys": "Key target (0 = all)",
++    "enabled": "Enabled",
++    "manual_mode": "Manual channel",
++    "save_channel": "Save channel",
++    "close": "Close",
++    "runs_title": "Batch queue",
++    "no_runs": "No batches yet",
++    "no_runs_hint": "Select a channel and submit accounts to begin.",
++    "pause": "Pause",
++    "resume": "Continue",
++    "retry": "Retry unfinished",
++    "cancel": "Cancel batch",
++    "progress": "{{done}} / {{total}} completed",
++    "row": "Row {{line}}",
++    "attempt": "Attempt {{attempt}}",
++    "handoff_hint": "Complete the required browser step, then continue. You can also submit a key from the dashboard for verification and import.",
++    "manual_key": "Dashboard key",
++    "verify_import": "Verify and import",
++    "events_title": "Live events",
++    "no_events": "Waiting for events",
++    "counter": {
++      "total": "Total",
++      "done": "Imported",
++      "failed": "Failed",
++      "waiting": "Waiting for you",
++      "pendingWrite": "Pending import"
++    },
++    "stream": {
++      "connecting": "Connecting events",
++      "live": "Live",
++      "reconnecting": "Reconnecting automatically"
++    },
++    "mode": {
++      "controller": "Controller",
++      "proxy_only": "Proxy only",
++      "disabled": "Direct connection",
++      "lease": "Exclusive lease",
++      "per_channel": "Per channel",
++      "shared": "Shared selector"
++    }
+   }
+ }
+diff --git a/src/i18n/locales/ko.json b/src/i18n/locales/ko.json
+index 9ee21a0..78d6f53 100644
+--- a/src/i18n/locales/ko.json
++++ b/src/i18n/locales/ko.json
+@@ -2622,5 +2622,148 @@
+     "remove_pattern": "{{row}}행 정규식 규칙 삭제",
+     "move_up": "{{row}}행 정규식 규칙 위로 이동",
+     "move_down": "{{row}}행 정규식 규칙 아래로 이동"
++  },
++  "registerbot": {
++    "stage": {
++      "network_error": "네트워크 연결 오류",
++      "email": "계정 입력 중",
++      "password": "비밀번호 입력 중",
++      "choose_account": "계정 선택 중",
++      "consent": "동의 확인 중",
++      "google": "Google 인증 여는 중",
++      "speedbump": "Workspace 약관 확인",
++      "key": "키 획득",
++      "reveal": "키 표시 중",
++      "dashboard": "대시보드 여는 중",
++      "challenge": "추가 인증 필요",
++      "blocked": "사용자 지원 필요",
++      "invalid_credentials": "자격 증명 거부됨",
++      "manual": "수동으로 계속",
++      "loading": "페이지 대기",
++      "gateway_probe": "게이트웨이 확인",
++      "gateway_degraded": "게이트웨이 대체 모드",
++      "browser_degraded": "브라우저 대체 모드",
++      "settings_updated": "설정 저장됨",
++      "storage_error": "상태 저장 실패",
++      "queued": "대기열",
++      "running": "실행 중",
++      "validating": "검증 중",
++      "pinning": "게이트웨이 고정",
++      "browser_start": "브라우저 시작",
++      "google_login": "Google 인증",
++      "waiting_human": "사용자 작업 대기",
++      "capturing_key": "키 읽는 중",
++      "verifying_key": "키 검증 중",
++      "writing_key": "키 가져오는 중",
++      "pending_write": "가져오기 대기",
++      "done": "가져옴",
++      "completed": "완료",
++      "failed": "실패",
++      "skipped": "건너뜀",
++      "paused": "일시 중지",
++      "cancelled": "취소됨",
++      "partial": "부분 완료",
++      "degraded": "대체 모드 활성",
++      "gateway": "게이트웨이",
++      "browser": "브라우저"
++    },
++    "reason": {
++      "verify_or_write_failed": "키 검증 또는 가져오기에 실패했습니다. 재시도할 수 있도록 키를 보관합니다.",
++      "manual_action_required": "브라우저 단계를 완료하거나 키를 제출하세요.",
++      "provider_missing": "대상 공급자가 없거나 중복됩니다.",
++      "verification_failed": "키 검증에 실패하여 가져오지 않았습니다.",
++      "config_conflict": "설정이 변경되었습니다. 현재 버전에 병합하려면 재시도하세요.",
++      "write_failed": "가져오기가 확인되지 않아 키를 재시도용으로 보관합니다.",
++      "import_unavailable": "공급자 가져오기 서비스를 사용할 수 없습니다.",
++      "restart_resume_required": "서버가 재시작되었습니다. 저장된 대기열을 재개하세요.",
++      "operator_paused": "사용자가 일시 중지했습니다.",
++      "operator_cancelled": "사용자가 취소했습니다.",
++      "attempt_failed": "시도가 실패했습니다. 재시도 전에 이벤트를 확인하세요.",
++      "target_reached": "채널 키 목표에 도달하여 건너뛰었습니다.",
++      "invalid": "계정|비밀번호 형식이 잘못되었습니다.",
++      "duplicate": "이 배치에 중복된 계정입니다."
++    },
++    "storage_error": "상태 저장에 실패했습니다. 배치를 시작하거나 재개하기 전에 서버 저장소를 확인하세요.",
++    "probe_gateway": "게이트웨이와 노드 확인",
++    "nav": "등록 봇",
++    "nav_hint": "채널 대기열과 실시간 진행",
++    "title": "다중 채널 등록 봇",
++    "description": "계정 대기열과 인증을 추적하고 키를 검증한 뒤 CPA에 가져옵니다.",
++    "channel": "채널",
++    "new_batch": "새 배치",
++    "accounts": "계정",
++    "accounts_hint": "한 줄에 계정|비밀번호, 최대 500줄입니다. 제출 후 입력은 지워지고 진행 상황에는 마스킹된 계정만 표시됩니다.",
++    "destination": "가져올 대상",
++    "start": "배치 시작",
++    "loading": "등록 상태 불러오는 중…",
++    "load_failed": "등록 모듈을 사용할 수 없음",
++    "backend_required": "연결과 백엔드의 registerbot 모듈 배포를 확인하세요.",
++    "operation_failed": "작업이 확인되지 않았습니다. 다시 제출하기 전에 이벤트와 새로고침한 상태를 확인하세요.",
++    "reload": "새로고침",
++    "disabled": "백엔드 설정에서 등록 엔진이 비활성화되어 있습니다.",
++    "gateway": "게이트웨이",
++    "browser": "브라우저",
++    "browser_on_demand": "필요 시 시작",
++    "unknown": "알 수 없음",
++    "live_hint": "이벤트는 자동으로 재연결되며 배치는 서버에서 계속 실행됩니다.",
++    "gateway_title": "게이트웨이 및 브라우저",
++    "proxy": "프록시",
++    "controller": "컨트롤러",
++    "sharing": "공유 정책",
++    "gateway_group": "프록시 그룹",
++    "node": "고정 노드",
++    "auto_node": "자동 선택",
++    "gateway_hint": "공유 선택기는 계정 실행 중 임대되며 여러 독립 출구의 동시 사용을 보장하지 않습니다.",
++    "gateway_unavailable": "게이트웨이 상태를 가져올 수 없음",
++    "degrade_hint": "배치는 대체 경로로 계속될 수 있습니다. 실제 모드는 이벤트를 확인하세요.",
++    "ladders": "게이트웨이: 컨트롤러 → 프록시만 → 직접. 브라우저: 내장 → 연결 → 시스템 → 수동.",
++    "edit_channel": "채널 편집",
++    "add_channel": "채널 추가",
++    "channel_id": "채널 ID",
++    "channel_name": "채널 이름",
++    "channel_provider": "공급자 그룹",
++    "concurrency": "동시 실행 수",
++    "intervalSeconds": "계정 간격(초)",
++    "maxAttempts": "최대 시도 횟수",
++    "targetKeys": "키 목표(0 = 전체)",
++    "enabled": "사용",
++    "manual_mode": "수동 채널",
++    "save_channel": "채널 저장",
++    "close": "닫기",
++    "runs_title": "배치 대기열",
++    "no_runs": "아직 배치 없음",
++    "no_runs_hint": "채널을 선택하고 계정을 제출하세요.",
++    "pause": "일시 중지",
++    "resume": "계속",
++    "retry": "미완료 항목 재시도",
++    "cancel": "배치 취소",
++    "progress": "{{done}} / {{total}} 완료",
++    "row": "{{line}}행",
++    "attempt": "{{attempt}}번째 시도",
++    "handoff_hint": "브라우저에서 필요한 단계를 완료한 뒤 계속하세요. 대시보드 키를 제출해 검증하고 가져올 수도 있습니다.",
++    "manual_key": "대시보드 키",
++    "verify_import": "검증 후 가져오기",
++    "events_title": "실시간 이벤트",
++    "no_events": "이벤트 대기 중",
++    "counter": {
++      "total": "전체",
++      "done": "가져옴",
++      "failed": "실패",
++      "waiting": "사용자 대기",
++      "pendingWrite": "가져오기 대기"
++    },
++    "stream": {
++      "connecting": "이벤트 연결 중",
++      "live": "실시간",
++      "reconnecting": "자동 재연결 중"
++    },
++    "mode": {
++      "controller": "컨트롤러",
++      "proxy_only": "프록시만",
++      "disabled": "직접 연결",
++      "lease": "독점 임대",
++      "per_channel": "채널별",
++      "shared": "공유 선택기"
++    }
+   }
+ }
+diff --git a/src/i18n/locales/ru.json b/src/i18n/locales/ru.json
+index 9ae94b8..37da9ee 100644
+--- a/src/i18n/locales/ru.json
++++ b/src/i18n/locales/ru.json
+@@ -2640,5 +2640,148 @@
+     "remove_pattern": "Удалить правило regex {{row}}",
+     "move_up": "Переместить правило regex {{row}} вверх",
+     "move_down": "Переместить правило regex {{row}} вниз"
++  },
++  "registerbot": {
++    "stage": {
++      "network_error": "Ошибка сети",
++      "email": "Ввод аккаунта",
++      "password": "Ввод пароля",
++      "choose_account": "Выбор аккаунта",
++      "consent": "Подтверждение согласия",
++      "google": "Открытие авторизации Google",
++      "speedbump": "Подтверждение условий Workspace",
++      "key": "Ключ получен",
++      "reveal": "Отображение ключа",
++      "dashboard": "Открытие панели",
++      "challenge": "Дополнительная проверка",
++      "blocked": "Нужна помощь оператора",
++      "invalid_credentials": "Данные входа отклонены",
++      "manual": "Ручное продолжение",
++      "loading": "Ожидание страницы",
++      "gateway_probe": "Проверка шлюза",
++      "gateway_degraded": "Резервный шлюз",
++      "browser_degraded": "Резервный браузер",
++      "settings_updated": "Настройки сохранены",
++      "storage_error": "Ошибка сохранения состояния",
++      "queued": "В очереди",
++      "running": "Выполняется",
++      "validating": "Проверка",
++      "pinning": "Закрепление шлюза",
++      "browser_start": "Запуск браузера",
++      "google_login": "Авторизация Google",
++      "waiting_human": "Ожидание действий",
++      "capturing_key": "Чтение ключа",
++      "verifying_key": "Проверка ключа",
++      "writing_key": "Импорт ключа",
++      "pending_write": "Ожидание импорта",
++      "done": "Импортировано",
++      "completed": "Завершено",
++      "failed": "Ошибка",
++      "skipped": "Пропущено",
++      "paused": "Приостановлено",
++      "cancelled": "Отменено",
++      "partial": "Частично завершено",
++      "degraded": "Резервный режим",
++      "gateway": "Шлюз",
++      "browser": "Браузер"
++    },
++    "reason": {
++      "verify_or_write_failed": "Проверка или импорт не удались. Ключ сохранён для повтора.",
++      "manual_action_required": "Выполните шаг в браузере или отправьте ключ.",
++      "provider_missing": "Провайдер отсутствует или неоднозначен.",
++      "verification_failed": "Ключ не прошёл проверку и не импортирован.",
++      "config_conflict": "Конфигурация изменилась. Повторите для объединения с текущей версией.",
++      "write_failed": "Импорт не подтверждён; ключ сохранён для повтора.",
++      "import_unavailable": "Сервис импорта недоступен.",
++      "restart_resume_required": "Сервер перезапущен. Продолжите сохранённую очередь.",
++      "operator_paused": "Приостановлено оператором.",
++      "operator_cancelled": "Отменено оператором.",
++      "attempt_failed": "Попытка не удалась. Проверьте события перед повтором.",
++      "target_reached": "Пропущено: цель ключей канала достигнута.",
++      "invalid": "Неверный формат аккаунт|пароль.",
++      "duplicate": "Повтор аккаунта в этом пакете."
++    },
++    "storage_error": "Не удалось сохранить состояние. Проверьте хранилище сервера перед запуском или продолжением.",
++    "probe_gateway": "Проверить шлюз и узлы",
++    "nav": "Регистрация",
++    "nav_hint": "Очереди каналов и прогресс",
++    "title": "Регистрация по каналам",
++    "description": "Очередь аккаунтов, авторизация и проверка ключей перед импортом в CPA.",
++    "channel": "Канал",
++    "new_batch": "Новый пакет",
++    "accounts": "Аккаунты",
++    "accounts_hint": "Одна пара аккаунт|пароль на строку, до 500 строк. После отправки ввод очищается; в прогрессе видны только маски.",
++    "destination": "Куда импортировать",
++    "start": "Запустить пакет",
++    "loading": "Загрузка состояния…",
++    "load_failed": "Модуль регистрации недоступен",
++    "backend_required": "Проверьте соединение и наличие модуля registerbot на сервере.",
++    "operation_failed": "Операция не подтверждена. Проверьте события и обновите состояние перед повтором.",
++    "reload": "Обновить",
++    "disabled": "Движок регистрации отключён в настройках сервера.",
++    "gateway": "Шлюз",
++    "browser": "Браузер",
++    "browser_on_demand": "Запускается по запросу",
++    "unknown": "Неизвестно",
++    "live_hint": "События подключаются повторно; пакеты продолжаются на сервере.",
++    "gateway_title": "Шлюз и браузер",
++    "proxy": "Прокси",
++    "controller": "Контроллер",
++    "sharing": "Политика разделения",
++    "gateway_group": "Группа прокси",
++    "node": "Закреплённый узел",
++    "auto_node": "Автоматический выбор",
++    "gateway_hint": "Общий селектор арендуется на время аккаунта; одновременные независимые выходы не гарантируются.",
++    "gateway_unavailable": "Состояние шлюза недоступно",
++    "degrade_hint": "Пакет может продолжиться в резервном режиме; фактический режим указан в событиях.",
++    "ladders": "Шлюз: контроллер → прокси → напрямую. Браузер: встроенный → подключённый → системный → вручную.",
++    "edit_channel": "Изменить канал",
++    "add_channel": "Добавить канал",
++    "channel_id": "ID канала",
++    "channel_name": "Название канала",
++    "channel_provider": "Группа провайдера",
++    "concurrency": "Параллельность",
++    "intervalSeconds": "Интервал аккаунтов (с)",
++    "maxAttempts": "Максимум попыток",
++    "targetKeys": "Цель ключей (0 = все)",
++    "enabled": "Включён",
++    "manual_mode": "Ручной режим",
++    "save_channel": "Сохранить канал",
++    "close": "Закрыть",
++    "runs_title": "Очередь пакетов",
++    "no_runs": "Пакетов пока нет",
++    "no_runs_hint": "Выберите канал и отправьте аккаунты.",
++    "pause": "Приостановить",
++    "resume": "Продолжить",
++    "retry": "Повторить незавершённые",
++    "cancel": "Отменить пакет",
++    "progress": "Завершено {{done}} / {{total}}",
++    "row": "Строка {{line}}",
++    "attempt": "Попытка {{attempt}}",
++    "handoff_hint": "Выполните шаг в браузере и продолжите. Можно отправить ключ из панели для проверки и импорта.",
++    "manual_key": "Ключ из панели",
++    "verify_import": "Проверить и импортировать",
++    "events_title": "События в реальном времени",
++    "no_events": "Ожидание событий",
++    "counter": {
++      "total": "Всего",
++      "done": "Импортировано",
++      "failed": "Ошибки",
++      "waiting": "Ожидают вас",
++      "pendingWrite": "Ожидают импорта"
++    },
++    "stream": {
++      "connecting": "Подключение событий",
++      "live": "В реальном времени",
++      "reconnecting": "Автоподключение"
++    },
++    "mode": {
++      "controller": "Контроллер",
++      "proxy_only": "Только прокси",
++      "disabled": "Напрямую",
++      "lease": "Эксклюзивная аренда",
++      "per_channel": "По каналам",
++      "shared": "Общий селектор"
++    }
+   }
+ }
+diff --git a/src/i18n/locales/tr.json b/src/i18n/locales/tr.json
+index a73bc47..d261e4a 100644
+--- a/src/i18n/locales/tr.json
++++ b/src/i18n/locales/tr.json
+@@ -2622,5 +2622,148 @@
+     "remove_pattern": "{{row}}. regex satırını sil",
+     "move_up": "{{row}}. regex satırını yukarı taşı",
+     "move_down": "{{row}}. regex satırını aşağı taşı"
++  },
++  "registerbot": {
++    "stage": {
++      "network_error": "Ağ bağlantısı hatası",
++      "email": "Hesap giriliyor",
++      "password": "Parola giriliyor",
++      "choose_account": "Hesap seçiliyor",
++      "consent": "Onay doğrulanıyor",
++      "google": "Google yetkilendirmesi açılıyor",
++      "speedbump": "Workspace koşulları onaylanıyor",
++      "key": "Anahtar alındı",
++      "reveal": "Anahtar gösteriliyor",
++      "dashboard": "Panel açılıyor",
++      "challenge": "Ek doğrulama",
++      "blocked": "Kullanıcı yardımı gerekli",
++      "invalid_credentials": "Kimlik bilgileri reddedildi",
++      "manual": "Elle devam",
++      "loading": "Sayfa bekleniyor",
++      "gateway_probe": "Ağ geçidi denetleniyor",
++      "gateway_degraded": "Ağ geçidi yedek modu",
++      "browser_degraded": "Tarayıcı yedek modu",
++      "settings_updated": "Ayarlar kaydedildi",
++      "storage_error": "Durum kaydı başarısız",
++      "queued": "Kuyrukta",
++      "running": "Çalışıyor",
++      "validating": "Doğrulanıyor",
++      "pinning": "Ağ geçidi sabitleniyor",
++      "browser_start": "Tarayıcı başlatılıyor",
++      "google_login": "Google yetkilendirme",
++      "waiting_human": "İşleminizi bekliyor",
++      "capturing_key": "Anahtar okunuyor",
++      "verifying_key": "Anahtar doğrulanıyor",
++      "writing_key": "Anahtar aktarılıyor",
++      "pending_write": "Aktarma bekleniyor",
++      "done": "Aktarıldı",
++      "completed": "Tamamlandı",
++      "failed": "Başarısız",
++      "skipped": "Atlandı",
++      "paused": "Duraklatıldı",
++      "cancelled": "İptal edildi",
++      "partial": "Kısmen tamamlandı",
++      "degraded": "Yedek mod etkin",
++      "gateway": "Ağ geçidi",
++      "browser": "Tarayıcı"
++    },
++    "reason": {
++      "verify_or_write_failed": "Anahtar doğrulaması veya aktarımı başarısız. Anahtar yeniden denemek için saklandı.",
++      "manual_action_required": "Tarayıcı adımını tamamlayın veya anahtar gönderin.",
++      "provider_missing": "Hedef sağlayıcı yok veya belirsiz.",
++      "verification_failed": "Anahtar doğrulanamadı; aktarılmadı.",
++      "config_conflict": "Yapılandırma değişti. Güncel sürümle birleştirmek için yeniden deneyin.",
++      "write_failed": "Aktarma doğrulanmadı; anahtar yeniden denemek için saklandı.",
++      "import_unavailable": "Sağlayıcı aktarma hizmeti kullanılamıyor.",
++      "restart_resume_required": "Sunucu yeniden başladı. Kaydedilmiş kuyruğu sürdürün.",
++      "operator_paused": "Kullanıcı tarafından duraklatıldı.",
++      "operator_cancelled": "Kullanıcı tarafından iptal edildi.",
++      "attempt_failed": "Deneme başarısız. Yeniden denemeden önce olayları inceleyin.",
++      "target_reached": "Kanal anahtar hedefine ulaştığı için atlandı.",
++      "invalid": "Geçersiz hesap|parola satırı.",
++      "duplicate": "Bu işlemde yinelenen hesap."
++    },
++    "storage_error": "Durum kaydedilemedi. İşlemi başlatmadan veya sürdürmeden sunucu depolamasını kontrol edin.",
++    "probe_gateway": "Ağ geçidini ve düğümleri denetle",
++    "nav": "Kayıt botu",
++    "nav_hint": "Kanal kuyrukları ve canlı ilerleme",
++    "title": "Çok kanallı kayıt botu",
++    "description": "Hesapları sıraya alın, yetkilendirmeyi izleyin ve anahtarları CPA’ya aktarmadan doğrulayın.",
++    "channel": "Kanal",
++    "new_batch": "Yeni toplu işlem",
++    "accounts": "Hesaplar",
++    "accounts_hint": "Her satıra hesap|parola, en fazla 500 satır. Gönderimden sonra giriş temizlenir; ilerlemede yalnızca maskeli hesaplar görünür.",
++    "destination": "Aktarma hedefi",
++    "start": "Toplu işlemi başlat",
++    "loading": "Kayıt durumu yükleniyor…",
++    "load_failed": "Kayıt modülü kullanılamıyor",
++    "backend_required": "Bağlantıyı ve sunucuda registerbot modülünün bulunduğunu kontrol edin.",
++    "operation_failed": "İşlem doğrulanmadı. Yeniden göndermeden önce olayları kontrol edip durumu yenileyin.",
++    "reload": "Yenile",
++    "disabled": "Kayıt motoru sunucu ayarlarında devre dışı.",
++    "gateway": "Ağ geçidi",
++    "browser": "Tarayıcı",
++    "browser_on_demand": "Gerektiğinde başlar",
++    "unknown": "Bilinmiyor",
++    "live_hint": "Olaylar otomatik yeniden bağlanır; işlemler sunucuda sürer.",
++    "gateway_title": "Ağ geçidi ve tarayıcı",
++    "proxy": "Vekil sunucu",
++    "controller": "Denetleyici",
++    "sharing": "Paylaşım ilkesi",
++    "gateway_group": "Vekil sunucu grubu",
++    "node": "Sabit düğüm",
++    "auto_node": "Otomatik seçim",
++    "gateway_hint": "Ortak seçici hesap çalışırken kiralanır; eşzamanlı bağımsız çıkışlar sağlamaz.",
++    "gateway_unavailable": "Ağ geçidi durumu alınamadı",
++    "degrade_hint": "İşlem yedek yoldan sürebilir; gerçek modu olaylardan kontrol edin.",
++    "ladders": "Ağ geçidi: denetleyici → yalnız vekil → doğrudan. Tarayıcı: gömülü → bağlı → sistem → elle.",
++    "edit_channel": "Kanalı düzenle",
++    "add_channel": "Kanal ekle",
++    "channel_id": "Kanal kimliği",
++    "channel_name": "Kanal adı",
++    "channel_provider": "Sağlayıcı grubu",
++    "concurrency": "Eşzamanlılık",
++    "intervalSeconds": "Hesap aralığı (saniye)",
++    "maxAttempts": "En fazla deneme",
++    "targetKeys": "Anahtar hedefi (0 = tümü)",
++    "enabled": "Etkin",
++    "manual_mode": "Elle kanal modu",
++    "save_channel": "Kanalı kaydet",
++    "close": "Kapat",
++    "runs_title": "Toplu işlem kuyruğu",
++    "no_runs": "Henüz işlem yok",
++    "no_runs_hint": "Başlamak için kanal seçip hesapları gönderin.",
++    "pause": "Duraklat",
++    "resume": "Devam et",
++    "retry": "Bitmeyenleri yeniden dene",
++    "cancel": "İşlemi iptal et",
++    "progress": "{{done}} / {{total}} tamamlandı",
++    "row": "{{line}}. satır",
++    "attempt": "{{attempt}}. deneme",
++    "handoff_hint": "Tarayıcıdaki gerekli adımı tamamlayıp devam edin. Doğrulama ve aktarma için panel anahtarını da gönderebilirsiniz.",
++    "manual_key": "Panel anahtarı",
++    "verify_import": "Doğrula ve aktar",
++    "events_title": "Canlı olaylar",
++    "no_events": "Olaylar bekleniyor",
++    "counter": {
++      "total": "Toplam",
++      "done": "Aktarılan",
++      "failed": "Başarısız",
++      "waiting": "Sizi bekliyor",
++      "pendingWrite": "Aktarma bekliyor"
++    },
++    "stream": {
++      "connecting": "Olaylara bağlanılıyor",
++      "live": "Canlı",
++      "reconnecting": "Otomatik yeniden bağlanıyor"
++    },
++    "mode": {
++      "controller": "Denetleyici",
++      "proxy_only": "Yalnız vekil",
++      "disabled": "Doğrudan bağlantı",
++      "lease": "Özel kiralama",
++      "per_channel": "Kanal başına",
++      "shared": "Ortak seçici"
++    }
+   }
+ }
+diff --git a/src/i18n/locales/vi.json b/src/i18n/locales/vi.json
+index 90613fa..f2eb4f2 100644
+--- a/src/i18n/locales/vi.json
++++ b/src/i18n/locales/vi.json
+@@ -2622,5 +2622,148 @@
+     "remove_pattern": "Xóa quy tắc regex dòng {{row}}",
+     "move_up": "Chuyển quy tắc regex dòng {{row}} lên",
+     "move_down": "Chuyển quy tắc regex dòng {{row}} xuống"
++  },
++  "registerbot": {
++    "stage": {
++      "network_error": "Lỗi kết nối mạng",
++      "email": "Nhập tài khoản",
++      "password": "Nhập mật khẩu",
++      "choose_account": "Chọn tài khoản",
++      "consent": "Xác nhận đồng ý",
++      "google": "Mở xác thực Google",
++      "speedbump": "Xác nhận điều khoản Workspace",
++      "key": "Đã lấy khóa",
++      "reveal": "Hiện khóa",
++      "dashboard": "Mở bảng điều khiển",
++      "challenge": "Xác minh bổ sung",
++      "blocked": "Cần trợ giúp người dùng",
++      "invalid_credentials": "Thông tin đăng nhập bị từ chối",
++      "manual": "Tiếp tục thủ công",
++      "loading": "Chờ trang",
++      "gateway_probe": "Kiểm tra cổng",
++      "gateway_degraded": "Cổng dự phòng",
++      "browser_degraded": "Trình duyệt dự phòng",
++      "settings_updated": "Đã lưu cài đặt",
++      "storage_error": "Lưu trạng thái thất bại",
++      "queued": "Đang chờ",
++      "running": "Đang chạy",
++      "validating": "Kiểm tra",
++      "pinning": "Cố định cổng",
++      "browser_start": "Mở trình duyệt",
++      "google_login": "Xác thực Google",
++      "waiting_human": "Chờ thao tác",
++      "capturing_key": "Đọc khóa",
++      "verifying_key": "Kiểm tra khóa",
++      "writing_key": "Nhập khóa",
++      "pending_write": "Chờ nhập",
++      "done": "Đã nhập",
++      "completed": "Hoàn tất",
++      "failed": "Thất bại",
++      "skipped": "Đã bỏ qua",
++      "paused": "Tạm dừng",
++      "cancelled": "Đã hủy",
++      "partial": "Hoàn tất một phần",
++      "degraded": "Chế độ dự phòng",
++      "gateway": "Cổng",
++      "browser": "Trình duyệt"
++    },
++    "reason": {
++      "verify_or_write_failed": "Kiểm tra hoặc nhập khóa thất bại. Khóa được giữ để thử lại.",
++      "manual_action_required": "Hoàn thành bước trình duyệt hoặc gửi khóa.",
++      "provider_missing": "Nhà cung cấp đích bị thiếu hoặc trùng.",
++      "verification_failed": "Kiểm tra khóa thất bại; chưa nhập khóa.",
++      "config_conflict": "Cấu hình đã thay đổi. Thử lại để hợp nhất với phiên bản hiện tại.",
++      "write_failed": "Chưa xác nhận nhập; khóa được giữ để thử lại.",
++      "import_unavailable": "Dịch vụ nhập không khả dụng.",
++      "restart_resume_required": "Máy chủ đã khởi động lại. Tiếp tục hàng đợi đã lưu.",
++      "operator_paused": "Đã được người dùng tạm dừng.",
++      "operator_cancelled": "Đã được người dùng hủy.",
++      "attempt_failed": "Lần thử thất bại. Kiểm tra sự kiện trước khi thử lại.",
++      "target_reached": "Bỏ qua vì kênh đã đạt mục tiêu khóa.",
++      "invalid": "Dòng tài khoản|mật khẩu không hợp lệ.",
++      "duplicate": "Tài khoản trùng trong lô."
++    },
++    "storage_error": "Không lưu được trạng thái. Kiểm tra bộ nhớ máy chủ trước khi bắt đầu hoặc tiếp tục.",
++    "probe_gateway": "Kiểm tra cổng và nút",
++    "nav": "Đăng ký tự động",
++    "nav_hint": "Hàng đợi và tiến độ trực tiếp",
++    "title": "Đăng ký đa kênh",
++    "description": "Xếp hàng tài khoản, theo dõi xác thực và kiểm tra khóa trước khi nhập vào CPA.",
++    "channel": "Kênh",
++    "new_batch": "Lô mới",
++    "accounts": "Tài khoản",
++    "accounts_hint": "Mỗi dòng tài khoản|mật khẩu, tối đa 500 dòng. Xóa đầu vào sau khi gửi; tiến độ chỉ hiển thị tài khoản đã che.",
++    "destination": "Đích nhập",
++    "start": "Bắt đầu lô",
++    "loading": "Đang tải trạng thái…",
++    "load_failed": "Mô-đun đăng ký không khả dụng",
++    "backend_required": "Kiểm tra kết nối và mô-đun registerbot trên máy chủ.",
++    "operation_failed": "Thao tác chưa được xác nhận. Kiểm tra sự kiện và tải lại trước khi gửi lại.",
++    "reload": "Tải lại",
++    "disabled": "Bộ máy đăng ký bị tắt trong cấu hình máy chủ.",
++    "gateway": "Cổng",
++    "browser": "Trình duyệt",
++    "browser_on_demand": "Khởi động khi cần",
++    "unknown": "Chưa rõ",
++    "live_hint": "Sự kiện tự kết nối lại; lô tiếp tục chạy trên máy chủ.",
++    "gateway_title": "Cổng và trình duyệt",
++    "proxy": "Proxy",
++    "controller": "Bộ điều khiển",
++    "sharing": "Chính sách chia sẻ",
++    "gateway_group": "Nhóm proxy",
++    "node": "Nút cố định",
++    "auto_node": "Tự động chọn",
++    "gateway_hint": "Bộ chọn dùng chung được khóa khi tài khoản chạy; không tạo nhiều lối ra độc lập đồng thời.",
++    "gateway_unavailable": "Chưa có trạng thái cổng",
++    "degrade_hint": "Lô có thể tiếp tục bằng chế độ dự phòng; xem chế độ thực tế trong sự kiện.",
++    "ladders": "Cổng: bộ điều khiển → chỉ proxy → trực tiếp. Trình duyệt: tích hợp → gắn vào → hệ thống → thủ công.",
++    "edit_channel": "Sửa kênh",
++    "add_channel": "Thêm kênh",
++    "channel_id": "ID kênh",
++    "channel_name": "Tên kênh",
++    "channel_provider": "Nhóm nhà cung cấp",
++    "concurrency": "Số luồng",
++    "intervalSeconds": "Khoảng cách tài khoản (giây)",
++    "maxAttempts": "Số lần thử tối đa",
++    "targetKeys": "Mục tiêu khóa (0 = tất cả)",
++    "enabled": "Bật",
++    "manual_mode": "Chế độ thủ công",
++    "save_channel": "Lưu kênh",
++    "close": "Đóng",
++    "runs_title": "Hàng đợi lô",
++    "no_runs": "Chưa có lô",
++    "no_runs_hint": "Chọn kênh và gửi tài khoản để bắt đầu.",
++    "pause": "Tạm dừng",
++    "resume": "Tiếp tục",
++    "retry": "Thử lại mục chưa xong",
++    "cancel": "Hủy lô",
++    "progress": "Hoàn tất {{done}} / {{total}}",
++    "row": "Dòng {{line}}",
++    "attempt": "Lần thử {{attempt}}",
++    "handoff_hint": "Hoàn thành bước trong trình duyệt rồi tiếp tục. Có thể gửi khóa từ bảng điều khiển để kiểm tra và nhập.",
++    "manual_key": "Khóa bảng điều khiển",
++    "verify_import": "Kiểm tra và nhập",
++    "events_title": "Sự kiện trực tiếp",
++    "no_events": "Đang chờ sự kiện",
++    "counter": {
++      "total": "Tổng",
++      "done": "Đã nhập",
++      "failed": "Thất bại",
++      "waiting": "Chờ thao tác",
++      "pendingWrite": "Chờ nhập"
++    },
++    "stream": {
++      "connecting": "Đang kết nối sự kiện",
++      "live": "Trực tiếp",
++      "reconnecting": "Tự kết nối lại"
++    },
++    "mode": {
++      "controller": "Bộ điều khiển",
++      "proxy_only": "Chỉ proxy",
++      "disabled": "Trực tiếp",
++      "lease": "Khóa độc quyền",
++      "per_channel": "Theo kênh",
++      "shared": "Bộ chọn dùng chung"
++    }
+   }
+ }
+diff --git a/src/i18n/locales/zh-CN.json b/src/i18n/locales/zh-CN.json
+index 6fe7df6..354ec1f 100644
+--- a/src/i18n/locales/zh-CN.json
++++ b/src/i18n/locales/zh-CN.json
+@@ -2613,5 +2613,148 @@
+     "remove_pattern": "删除第 {{row}} 行正则规则",
+     "move_up": "上移第 {{row}} 行正则规则",
+     "move_down": "下移第 {{row}} 行正则规则"
++  },
++  "registerbot": {
++    "stage": {
++      "network_error": "网络连接错误",
++      "email": "输入账户",
++      "password": "输入密码",
++      "choose_account": "选择账户",
++      "consent": "确认授权条款",
++      "google": "打开 Google 授权",
++      "speedbump": "确认 Workspace 条款",
++      "key": "已获取密钥",
++      "reveal": "显示密钥",
++      "dashboard": "打开仪表盘",
++      "challenge": "需要额外验证",
++      "blocked": "需要人工协助",
++      "invalid_credentials": "账密被拒绝",
++      "manual": "人工继续",
++      "loading": "等待页面",
++      "gateway_probe": "探测网关",
++      "gateway_degraded": "网关降级",
++      "browser_degraded": "浏览器降级",
++      "settings_updated": "设置已保存",
++      "storage_error": "状态存储失败",
++      "queued": "排队中",
++      "running": "运行中",
++      "validating": "预校验",
++      "pinning": "固定出口",
++      "browser_start": "启动浏览器",
++      "google_login": "Google 授权",
++      "waiting_human": "等待人工操作",
++      "capturing_key": "读取密钥",
++      "verifying_key": "校验密钥",
++      "writing_key": "写入供应商",
++      "pending_write": "等待写入",
++      "done": "已写入",
++      "completed": "已完成",
++      "failed": "失败",
++      "skipped": "已跳过",
++      "paused": "已暂停",
++      "cancelled": "已取消",
++      "partial": "部分完成",
++      "degraded": "已降级",
++      "gateway": "网关",
++      "browser": "浏览器"
++    },
++    "reason": {
++      "verify_or_write_failed": "密钥校验或写入失败，已保留密钥供重试。",
++      "manual_action_required": "请完成浏览器步骤或提交密钥。",
++      "provider_missing": "目标供应商不存在或不唯一。",
++      "verification_failed": "密钥校验失败，未写入供应商。",
++      "config_conflict": "配置已变化，请重试以合并到当前版本。",
++      "write_failed": "写入未获确认，已保留密钥供重试。",
++      "import_unavailable": "供应商写入服务不可用。",
++      "restart_resume_required": "服务已重启，请继续已保存的队列。",
++      "operator_paused": "已由操作员暂停。",
++      "operator_cancelled": "已由操作员取消。",
++      "attempt_failed": "本次尝试失败，请查看事件后重试。",
++      "target_reached": "渠道已达到目标密钥数，已跳过。",
++      "invalid": "账户|密码格式无效。",
++      "duplicate": "本批次中的重复账户。"
++    },
++    "storage_error": "状态持久化失败。启动或继续批次前，请检查服务端存储。",
++    "probe_gateway": "探测网关与节点",
++    "nav": "注册机",
++    "nav_hint": "渠道队列与实时进度",
++    "title": "多渠道注册机",
++    "description": "批量排队、跟踪授权，校验密钥后写入 CPA。",
++    "channel": "渠道",
++    "new_batch": "新建批次",
++    "accounts": "账户列表",
++    "accounts_hint": "每行一组 账户|密码，最多 500 行。提交后清空输入，进度仅显示脱敏账户。",
++    "destination": "写入目标",
++    "start": "开始批量注册",
++    "loading": "正在读取注册状态…",
++    "load_failed": "注册机模块不可用",
++    "backend_required": "请检查连接，并确认后端已部署 registerbot 模块。",
++    "operation_failed": "操作未获确认。请查看实时事件，刷新确认状态后再提交。",
++    "reload": "重新加载",
++    "disabled": "后端配置已禁用注册引擎。",
++    "gateway": "网关",
++    "browser": "浏览器",
++    "browser_on_demand": "按需启动",
++    "unknown": "未获取",
++    "live_hint": "事件流自动重连，批次在服务端持续运行。",
++    "gateway_title": "网关与浏览器",
++    "proxy": "代理出口",
++    "controller": "控制面",
++    "sharing": "共享策略",
++    "gateway_group": "代理分组",
++    "node": "固定节点",
++    "auto_node": "自动选择",
++    "gateway_hint": "共享选择器在账户执行期间持有租约，不代表可同时使用多个独立出口。",
++    "gateway_unavailable": "暂未获取网关状态",
++    "degrade_hint": "批次可沿降级路径继续，以事件上报的实际模式为准。",
++    "ladders": "网关：控制面 → 仅代理 → 直连；浏览器：内嵌 → 附加 → 系统 → 人工。",
++    "edit_channel": "编辑渠道",
++    "add_channel": "新增渠道",
++    "channel_id": "渠道标识",
++    "channel_name": "渠道名称",
++    "channel_provider": "供应商分组",
++    "concurrency": "并发数",
++    "intervalSeconds": "账户间隔（秒）",
++    "maxAttempts": "最多尝试次数",
++    "targetKeys": "目标密钥数（0 为全部）",
++    "enabled": "启用",
++    "manual_mode": "人工渠道模式",
++    "save_channel": "保存渠道",
++    "close": "关闭",
++    "runs_title": "批次队列",
++    "no_runs": "尚无批次",
++    "no_runs_hint": "选择渠道并提交账户后开始。",
++    "pause": "暂停",
++    "resume": "继续",
++    "retry": "重试未完成项",
++    "cancel": "取消批次",
++    "progress": "已完成 {{done}} / {{total}}",
++    "row": "第 {{line}} 行",
++    "attempt": "第 {{attempt}} 次尝试",
++    "handoff_hint": "完成浏览器要求的人工步骤后继续；也可提交仪表盘密钥，由系统校验并导入。",
++    "manual_key": "仪表盘密钥",
++    "verify_import": "校验并导入",
++    "events_title": "实时事件",
++    "no_events": "等待事件",
++    "counter": {
++      "total": "总计",
++      "done": "已写入",
++      "failed": "失败",
++      "waiting": "等待人工",
++      "pendingWrite": "待写入"
++    },
++    "stream": {
++      "connecting": "正在连接事件流",
++      "live": "实时连接",
++      "reconnecting": "正在自动重连"
++    },
++    "mode": {
++      "controller": "控制面",
++      "proxy_only": "仅代理",
++      "disabled": "直连",
++      "lease": "独占租约",
++      "per_channel": "按渠道",
++      "shared": "共享选择器"
++    }
+   }
+ }
+diff --git a/src/i18n/locales/zh-TW.json b/src/i18n/locales/zh-TW.json
+index 0f6fd76..e7b2d22 100644
+--- a/src/i18n/locales/zh-TW.json
++++ b/src/i18n/locales/zh-TW.json
+@@ -2613,5 +2613,148 @@
+     "remove_pattern": "刪除第 {{row}} 列正規規則",
+     "move_up": "上移第 {{row}} 列正規規則",
+     "move_down": "下移第 {{row}} 列正規規則"
++  },
++  "registerbot": {
++    "stage": {
++      "network_error": "網路連線錯誤",
++      "email": "輸入帳號",
++      "password": "輸入密碼",
++      "choose_account": "選擇帳號",
++      "consent": "確認授權條款",
++      "google": "開啟 Google 授權",
++      "speedbump": "確認 Workspace 條款",
++      "key": "已取得金鑰",
++      "reveal": "顯示金鑰",
++      "dashboard": "開啟儀表板",
++      "challenge": "需要額外驗證",
++      "blocked": "需要人工協助",
++      "invalid_credentials": "帳密遭拒絕",
++      "manual": "人工繼續",
++      "loading": "等待頁面",
++      "gateway_probe": "探測閘道",
++      "gateway_degraded": "閘道降級",
++      "browser_degraded": "瀏覽器降級",
++      "settings_updated": "設定已儲存",
++      "storage_error": "狀態儲存失敗",
++      "queued": "排隊中",
++      "running": "執行中",
++      "validating": "預先驗證",
++      "pinning": "固定出口",
++      "browser_start": "啟動瀏覽器",
++      "google_login": "Google 授權",
++      "waiting_human": "等待人工操作",
++      "capturing_key": "讀取金鑰",
++      "verifying_key": "驗證金鑰",
++      "writing_key": "寫入供應商",
++      "pending_write": "等待寫入",
++      "done": "已寫入",
++      "completed": "已完成",
++      "failed": "失敗",
++      "skipped": "已略過",
++      "paused": "已暫停",
++      "cancelled": "已取消",
++      "partial": "部分完成",
++      "degraded": "已降級",
++      "gateway": "閘道",
++      "browser": "瀏覽器"
++    },
++    "reason": {
++      "verify_or_write_failed": "金鑰驗證或寫入失敗，已保留金鑰供重試。",
++      "manual_action_required": "請完成瀏覽器步驟或提交金鑰。",
++      "provider_missing": "目標供應商不存在或不唯一。",
++      "verification_failed": "金鑰驗證失敗，未寫入供應商。",
++      "config_conflict": "設定已變更，請重試以合併至目前版本。",
++      "write_failed": "寫入未獲確認，已保留金鑰供重試。",
++      "import_unavailable": "供應商寫入服務無法使用。",
++      "restart_resume_required": "服務已重新啟動，請繼續已儲存的佇列。",
++      "operator_paused": "已由操作員暫停。",
++      "operator_cancelled": "已由操作員取消。",
++      "attempt_failed": "本次嘗試失敗，請查看事件後重試。",
++      "target_reached": "渠道已達目標金鑰數，已略過。",
++      "invalid": "帳號|密碼格式無效。",
++      "duplicate": "本批次中的重複帳號。"
++    },
++    "storage_error": "狀態持久化失敗。啟動或繼續批次前，請檢查伺服器儲存空間。",
++    "probe_gateway": "探測閘道與節點",
++    "nav": "註冊機",
++    "nav_hint": "渠道佇列與即時進度",
++    "title": "多渠道註冊機",
++    "description": "批次排隊、追蹤授權，驗證金鑰後寫入 CPA。",
++    "channel": "渠道",
++    "new_batch": "新增批次",
++    "accounts": "帳號清單",
++    "accounts_hint": "每行一組 帳號|密碼，最多 500 行。提交後清空輸入，進度僅顯示遮罩帳號。",
++    "destination": "寫入目標",
++    "start": "開始批次註冊",
++    "loading": "正在讀取註冊狀態…",
++    "load_failed": "註冊機模組無法使用",
++    "backend_required": "請檢查連線，並確認後端已部署 registerbot 模組。",
++    "operation_failed": "操作未獲確認。請查看即時事件，重新整理確認狀態後再提交。",
++    "reload": "重新載入",
++    "disabled": "後端設定已停用註冊引擎。",
++    "gateway": "閘道",
++    "browser": "瀏覽器",
++    "browser_on_demand": "隨需啟動",
++    "unknown": "尚未取得",
++    "live_hint": "事件串流自動重新連線，批次在伺服器持續執行。",
++    "gateway_title": "閘道與瀏覽器",
++    "proxy": "代理出口",
++    "controller": "控制面",
++    "sharing": "共用策略",
++    "gateway_group": "代理群組",
++    "node": "固定節點",
++    "auto_node": "自動選擇",
++    "gateway_hint": "共用選擇器在帳號執行期間持有租約，不代表可同時使用多個獨立出口。",
++    "gateway_unavailable": "尚未取得閘道狀態",
++    "degrade_hint": "批次可沿降級路徑繼續，以事件回報的實際模式為準。",
++    "ladders": "閘道：控制面 → 僅代理 → 直連；瀏覽器：內嵌 → 附加 → 系統 → 人工。",
++    "edit_channel": "編輯渠道",
++    "add_channel": "新增渠道",
++    "channel_id": "渠道識別碼",
++    "channel_name": "渠道名稱",
++    "channel_provider": "供應商群組",
++    "concurrency": "並行數",
++    "intervalSeconds": "帳號間隔（秒）",
++    "maxAttempts": "最多嘗試次數",
++    "targetKeys": "目標金鑰數（0 為全部）",
++    "enabled": "啟用",
++    "manual_mode": "人工渠道模式",
++    "save_channel": "儲存渠道",
++    "close": "關閉",
++    "runs_title": "批次佇列",
++    "no_runs": "尚無批次",
++    "no_runs_hint": "選擇渠道並提交帳號後開始。",
++    "pause": "暫停",
++    "resume": "繼續",
++    "retry": "重試未完成項",
++    "cancel": "取消批次",
++    "progress": "已完成 {{done}} / {{total}}",
++    "row": "第 {{line}} 行",
++    "attempt": "第 {{attempt}} 次嘗試",
++    "handoff_hint": "完成瀏覽器要求的人工步驟後繼續；也可提交儀表板金鑰，由系統驗證並匯入。",
++    "manual_key": "儀表板金鑰",
++    "verify_import": "驗證並匯入",
++    "events_title": "即時事件",
++    "no_events": "等待事件",
++    "counter": {
++      "total": "總計",
++      "done": "已寫入",
++      "failed": "失敗",
++      "waiting": "等待人工",
++      "pendingWrite": "待寫入"
++    },
++    "stream": {
++      "connecting": "正在連線事件串流",
++      "live": "即時連線",
++      "reconnecting": "正在自動重新連線"
++    },
++    "mode": {
++      "controller": "控制面",
++      "proxy_only": "僅代理",
++      "disabled": "直連",
++      "lease": "獨占租約",
++      "per_channel": "依渠道",
++      "shared": "共用選擇器"
++    }
+   }
+ }
+diff --git a/src/router/MainRoutes.tsx b/src/router/MainRoutes.tsx
+index 1274f80..0b14c49 100644
+--- a/src/router/MainRoutes.tsx
++++ b/src/router/MainRoutes.tsx
+@@ -2,6 +2,7 @@ import { Navigate, useRoutes, type Location } from 'react-router-dom';
+ import { DashboardPage } from '@/features/dashboard/DashboardPage';
+ import { ProvidersWorkbenchPage } from '@/features/providers/ProvidersWorkbenchPage';
+ import { ProviderKeyImportPage } from '@/features/providerKeyImport/ProviderKeyImportPage';
++import { RegisterbotPage } from '@/features/registerbot/RegisterbotPage';
+ import { AuthFilesPage } from '@/features/authFiles/AuthFilesPage';
+ import { AuthFilesOAuthExcludedEditPage } from '@/pages/AuthFilesOAuthExcludedEditPage';
+ import { AuthFilesOAuthModelAliasEditPage } from '@/pages/AuthFilesOAuthModelAliasEditPage';
+@@ -26,6 +27,7 @@ const createMainRoutes = (supportsPlugin: boolean) => [
+   { path: '/ai-providers', element: <ProvidersWorkbenchPage /> },
+   { path: '/ai-providers/*', element: <Navigate to="/ai-providers" replace /> },
+   { path: '/provider-key-import', element: <ProviderKeyImportPage /> },
++  { path: '/registerbot', element: <RegisterbotPage /> },
+   { path: '/auth-files', element: <AuthFilesPage /> },
+   { path: '/auth-files/oauth-excluded', element: <AuthFilesOAuthExcludedEditPage /> },
+   { path: '/auth-files/oauth-model-alias', element: <AuthFilesOAuthModelAliasEditPage /> },
+diff --git a/src/services/api/registerbot.ts b/src/services/api/registerbot.ts
+new file mode 100644
+index 0000000..cf80072
+--- /dev/null
++++ b/src/services/api/registerbot.ts
+@@ -0,0 +1,233 @@
++import { isRecord } from '@/utils/helpers';
++import { consumeEventStream } from '@/features/registerbot/stream';
++import type {
++  RegisterChannel,
++  RegisterCounters,
++  RegisterEvent,
++  RegisterGateway,
++  RegisterRun,
++  RegisterSnapshot,
++  RunAction,
++} from '@/features/registerbot/types';
++import { apiClient } from './client';
++
++const PATH = '/registerbot';
++const record = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
++const text = (value: unknown) => (typeof value === 'string' ? value : '');
++const number = (value: unknown) =>
++  typeof value === 'number' && Number.isFinite(value) ? value : 0;
++const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
++const strings = (value: unknown) =>
++  list(value).filter((item): item is string => typeof item === 'string');
++
++export function readRegisterChannel(value: unknown): RegisterChannel {
++  const item = record(value);
++  return {
++    id: text(item.id),
++    kind: text(item.kind),
++    name: text(item.name),
++    enabled: item.enabled === true,
++    provider: text(item.provider),
++    proxyUrl: text(item.proxy_url),
++    concurrency: number(item.concurrency),
++    group: text(item.group),
++    nodes: strings(item.nodes),
++    rotateNode: item.rotate_node === true,
++    intervalSeconds: number(item.interval_seconds),
++    stepDelayMillis: number(item.step_delay_millis),
++    targetKeys: number(item.target_keys),
++    maxAttempts: number(item.max_attempts),
++    startUrl: text(item.start_url),
++    manualMode: item.manual_mode === true,
++  };
++}
++
++function writeChannel(item: RegisterChannel) {
++  return {
++    id: item.id,
++    kind: item.kind,
++    name: item.name,
++    enabled: item.enabled,
++    provider: item.provider,
++    proxy_url: item.proxyUrl,
++    concurrency: item.concurrency,
++    group: item.group,
++    nodes: item.nodes,
++    rotate_node: item.rotateNode,
++    interval_seconds: item.intervalSeconds,
++    step_delay_millis: item.stepDelayMillis,
++    target_keys: item.targetKeys,
++    max_attempts: item.maxAttempts,
++    start_url: item.startUrl,
++    manual_mode: item.manualMode,
++  };
++}
++
++function readCounters(value: unknown): RegisterCounters {
++  const item = record(value);
++  return {
++    total: number(item.total),
++    queued: number(item.queued),
++    running: number(item.running),
++    done: number(item.done),
++    failed: number(item.failed),
++    skipped: number(item.skipped),
++    waiting: number(item.waiting_human),
++    pendingWrite: number(item.pending_write),
++    harvested: number(item.harvested_keys),
++  };
++}
++
++export function readRegisterRun(value: unknown): RegisterRun {
++  const item = record(value);
++  return {
++    id: text(item.id),
++    channel: text(item.channel),
++    status: text(item.status),
++    createdAt: number(item.created_at),
++    updatedAt: number(item.updated_at),
++    counters: readCounters(item.counters),
++    rows: list(item.rows).map((value) => {
++      const row = record(value);
++      return {
++        id: text(row.id),
++        line: number(row.line),
++        account: text(row.account),
++        stage: text(row.stage),
++        attempt: number(row.attempt),
++        maskedKey: text(row.masked_key),
++        reason: text(row.reason),
++        updatedAt: number(row.updated_at),
++      };
++    }),
++  };
++}
++
++export function readRegisterEvent(value: unknown): RegisterEvent | null {
++  const item = record(value);
++  if (!Number.isSafeInteger(item.seq) || number(item.seq) <= 0 || !text(item.stage)) return null;
++  return {
++    seq: number(item.seq),
++    at: number(item.at),
++    channel: text(item.channel),
++    run: text(item.run),
++    account: text(item.account),
++    stage: text(item.stage),
++    level: text(item.level),
++    message: text(item.message),
++    node: text(item.node),
++    exitIp: text(item.exit_ip),
++    browser: text(item.browser),
++  };
++}
++
++export function createRegisterbotClient(isActive: () => boolean, signal: AbortSignal) {
++  const revision = apiClient.getConnectionRevision();
++  const isCurrent = () =>
++    !signal.aborted && isActive() && revision === apiClient.getConnectionRevision();
++  const client = apiClient.captureConnection(isCurrent);
++  const assertCurrent = () => {
++    if (!isCurrent()) throw new Error('Connection changed');
++  };
++
++  return {
++    isCurrent,
++    async snapshot(): Promise<RegisterSnapshot> {
++      assertCurrent();
++      const item = record(await client.get(PATH, { signal }));
++      return {
++        enabled: item.enabled === true,
++        storageError: item.storage_error === true,
++        channels: list(item.channels).map(readRegisterChannel),
++        runs: list(item.runs).map(readRegisterRun),
++        cursor: number(item.cursor),
++      };
++    },
++    async gateway(): Promise<RegisterGateway> {
++      assertCurrent();
++      const item = record(await client.get(`${PATH}/gateway`, { signal }));
++      return {
++        mode: text(item.mode),
++        proxyUrl: text(item.proxy_url),
++        controllerUrl: text(item.controller_url),
++        shareMode: text(item.share_mode),
++        warnings: strings(item.warnings),
++        error: text(item.error),
++        groups: list(item.groups).map((value) => {
++          const group = record(value);
++          return {
++            name: text(group.name),
++            type: text(group.type),
++            now: text(group.now),
++            nodes: strings(group.nodes),
++          };
++        }),
++      };
++    },
++    async start(channel: string, accounts: string) {
++      assertCurrent();
++      const result = record(await client.post(`${PATH}/runs`, { channel, accounts }, { signal }));
++      return readRegisterRun(result.run);
++    },
++    async action(run: string, action: RunAction) {
++      assertCurrent();
++      await client.post(`${PATH}/runs/${encodeURIComponent(run)}/actions`, { action }, { signal });
++    },
++    async submitKey(run: string, rowId: string, key: string) {
++      assertCurrent();
++      await client.post(
++        `${PATH}/runs/${encodeURIComponent(run)}/keys`,
++        { row_id: rowId, key },
++        { signal }
++      );
++    },
++    async probeGateway() {
++      assertCurrent();
++      await client.post(`${PATH}/gateway/probe`, {}, { signal });
++    },
++    async saveChannel(channel: RegisterChannel) {
++      assertCurrent();
++      await client.put(
++        `${PATH}/channels/${encodeURIComponent(channel.id)}`,
++        writeChannel(channel),
++        { signal }
++      );
++    },
++    async events(
++      after: number,
++      accept: (event: RegisterEvent) => void,
++      reset: (cursor: number) => void,
++      connected: () => void
++    ) {
++      assertCurrent();
++      const response = await client.getRaw(`${PATH}/events`, {
++        signal,
++        adapter: 'fetch',
++        responseType: 'stream',
++        timeout: 0,
++        params: { after },
++        headers: { Accept: 'text/event-stream', 'Last-Event-ID': String(after) },
++      });
++      assertCurrent();
++      const stream: unknown = response.data;
++      if (!stream || typeof stream !== 'object' || !('getReader' in stream))
++        throw new Error('Event stream unavailable');
++      connected();
++      await consumeEventStream(stream as ReadableStream<Uint8Array>, signal, (frame) => {
++        if (!isCurrent()) return;
++        let value: unknown;
++        try {
++          value = JSON.parse(frame.data);
++        } catch {
++          throw new Error('Invalid event data');
++        }
++        if (frame.event === 'reset') {
++          reset(number(record(value).cursor));
++          return;
++        }
++        const event = readRegisterEvent(value);
++        if (event) accept(event);
++      });
++    },
++  };
++}
+diff --git a/tests/quotaTimelineDst.test.ts b/tests/quotaTimelineDst.test.ts
+index 5e600ef..3988ac3 100644
+--- a/tests/quotaTimelineDst.test.ts
++++ b/tests/quotaTimelineDst.test.ts
+@@ -1,4 +1,5 @@
+ import { expect, test } from 'bun:test';
++import { fileURLToPath } from 'node:url';
+ 
+ // Separate processes keep timezone changes out of the other rendering suites.
+ const cases: { zone: string; date: number[]; hours: number; startHour?: number }[] = [
+@@ -65,7 +66,7 @@ for (const { zone, date, hours, startHour = 0 } of cases) {
+           console.log(JSON.stringify(output));
+         `,
+       ],
+-      cwd: new URL('..', import.meta.url).pathname,
++      cwd: fileURLToPath(new URL('..', import.meta.url)),
+       env: { ...process.env, TZ: zone },
+       stdout: 'pipe',
+       stderr: 'pipe',
+diff --git a/tests/registerbot.test.ts b/tests/registerbot.test.ts
+new file mode 100644
+index 0000000..43ba06a
+--- /dev/null
++++ b/tests/registerbot.test.ts
+@@ -0,0 +1,253 @@
++import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
++import {
++  createEventDecoder,
++  consumeEventStream,
++  waitForReconnect,
++} from '@/features/registerbot/stream';
++import {
++  createRegisterbotClient,
++  readRegisterChannel,
++  readRegisterEvent,
++  readRegisterRun,
++} from '@/services/api/registerbot';
++import { apiClient } from '@/services/api/client';
++
++afterEach(() => mock.restore());
++const wireEvent = {
++  seq: 9,
++  at: 1000,
++  channel: 'demo',
++  stage: 'waiting_human',
++  exit_ip: '203.0.113.5',
++};
++
++describe('registration event stream', () => {
++  test('decodes split CRLF frames, multiline data, comments and ids', () => {
++    const frames: unknown[] = [];
++    const decode = createEventDecoder((frame) => frames.push(frame));
++    decode(': keepalive\r\n\r\nid: 9\r\nevent: registerbot\r\ndata: {"seq":9,\r\n');
++    decode('data: "stage":"queued"}\r\n\r');
++    expect(frames).toEqual([]);
++    decode('\n');
++    expect(frames).toEqual([
++      { id: '9', event: 'registerbot', data: '{"seq":9,\n"stage":"queued"}' },
++    ]);
++  });
++
++  test('handles unicode split between network chunks', async () => {
++    const bytes = new TextEncoder().encode('data: 账户\n\n');
++    const frames: string[] = [];
++    const stream = new ReadableStream<Uint8Array>({
++      start(controller) {
++        controller.enqueue(bytes.slice(0, 7));
++        controller.enqueue(bytes.slice(7));
++        controller.close();
++      },
++    });
++    await consumeEventStream(stream, new AbortController().signal, (frame) =>
++      frames.push(frame.data)
++    );
++    expect(frames).toEqual(['账户']);
++  });
++
++  test('aborting releases a blocked stream and discards subsequent events', async () => {
++    const controller = new AbortController();
++    let cancelCount = 0;
++    const frames: unknown[] = [];
++    const stream = new ReadableStream<Uint8Array>({
++      cancel() {
++        cancelCount += 1;
++      },
++    });
++    const reading = consumeEventStream(stream, controller.signal, (frame) => frames.push(frame));
++    controller.abort();
++    await reading;
++    await waitForReconnect(controller.signal, 60_000);
++    expect(cancelCount).toBe(1);
++    expect(frames).toEqual([]);
++  });
++
++  test('rejects oversized unfinished frames', () => {
++    const decode = createEventDecoder(() => undefined);
++    expect(() => decode('x'.repeat(1024 * 1024 + 1))).toThrow('too large');
++  });
++});
++
++describe('registration contracts and connection isolation', () => {
++  test('provides labels for every fixed backend stage and failure reason', async () => {
++    const locale = await Bun.file('src/i18n/locales/en.json').json();
++    const stages = [
++      'queued',
++      'validating',
++      'pinning',
++      'browser_start',
++      'google_login',
++      'waiting_human',
++      'capturing_key',
++      'verifying_key',
++      'writing_key',
++      'pending_write',
++      'done',
++      'failed',
++      'skipped',
++      'paused',
++      'email',
++      'password',
++      'choose_account',
++      'consent',
++      'google',
++      'speedbump',
++      'key',
++      'reveal',
++      'dashboard',
++      'challenge',
++      'blocked',
++      'invalid_credentials',
++      'manual',
++      'loading',
++      'gateway_probe',
++      'gateway_degraded',
++      'browser_degraded',
++      'settings_updated',
++      'storage_error',
++      'network_error',
++      'running',
++      'cancelled',
++      'partial',
++    ];
++    const reasons = [
++      'verification_failed',
++      'provider_missing',
++      'config_conflict',
++      'write_failed',
++      'import_unavailable',
++      'verify_or_write_failed',
++      'restart_resume_required',
++      'operator_paused',
++      'operator_cancelled',
++      'manual_action_required',
++      'attempt_failed',
++      'target_reached',
++      'invalid',
++      'duplicate',
++    ];
++    for (const key of stages) expect(locale.registerbot.stage[key]).toBeString();
++    for (const key of reasons) expect(locale.registerbot.reason[key]).toBeString();
++  });
++  test('normalizes channel, run and event wire fields', () => {
++    expect(
++      readRegisterChannel({
++        id: 'one',
++        enabled: true,
++        proxy_url: 'http://127.0.0.1:12450',
++        concurrency: 2,
++        manual_mode: true,
++        nodes: ['a', 2],
++      })
++    ).toMatchObject({
++      id: 'one',
++      enabled: true,
++      concurrency: 2,
++      manualMode: true,
++      proxyUrl: 'http://127.0.0.1:12450',
++      nodes: ['a'],
++    });
++    expect(
++      readRegisterRun({
++        id: 'run',
++        created_at: 1000,
++        rows: [{ id: 'row', masked_key: 'sk-***', updated_at: 1500 }],
++        counters: { waiting_human: 1, pending_write: 2, harvested_keys: 3 },
++      })
++    ).toMatchObject({
++      createdAt: 1000,
++      rows: [{ maskedKey: 'sk-***', updatedAt: 1500 }],
++      counters: { waiting: 1, pendingWrite: 2, harvested: 3 },
++    });
++    expect(readRegisterEvent(wireEvent)).toMatchObject({ seq: 9, exitIp: '203.0.113.5' });
++    expect(readRegisterEvent({ seq: '9', stage: 'queued' })).toBeNull();
++    expect(readRegisterEvent({ seq: 9 })).toBeNull();
++  });
++
++  test('rejects a mutation after an ABA connection switch', async () => {
++    apiClient.setConfig({ apiBase: 'http://localhost:18317', managementKey: 'test-only-one' });
++    const client = createRegisterbotClient(() => true, new AbortController().signal);
++    apiClient.setConfig({ apiBase: 'http://localhost:18318', managementKey: 'test-only-two' });
++    apiClient.setConfig({ apiBase: 'http://localhost:18317', managementKey: 'test-only-one' });
++    expect(client.isCurrent()).toBe(false);
++    await expect(client.start('demo', 'test@example.invalid|test-password')).rejects.toThrow(
++      'Connection changed'
++    );
++    await expect(client.action('run', 'resume')).rejects.toThrow('Connection changed');
++  });
++
++  test('uses an authenticated captured connection for replay without credentials in query', async () => {
++    const frames: unknown[] = [];
++    const resets: number[] = [];
++    let connected = false;
++    const stream = new ReadableStream<Uint8Array>({
++      start(controller) {
++        controller.enqueue(
++          new TextEncoder().encode(
++            `event: reset\ndata: {"cursor":8}\n\nevent: registerbot\ndata: ${JSON.stringify(wireEvent)}\n\n`
++          )
++        );
++        controller.close();
++      },
++    });
++    const captured = apiClient.captureConnection();
++    const request = spyOn(captured, 'getRaw').mockResolvedValue({ data: stream } as Awaited<
++      ReturnType<typeof apiClient.getRaw>
++    >);
++    spyOn(apiClient, 'captureConnection').mockReturnValue(captured);
++    const client = createRegisterbotClient(() => true, new AbortController().signal);
++    await client.events(
++      7,
++      (event) => frames.push(event),
++      (cursor) => resets.push(cursor),
++      () => {
++        connected = true;
++      }
++    );
++    expect(request.mock.calls[0]).toMatchObject([
++      '/registerbot/events',
++      {
++        adapter: 'fetch',
++        responseType: 'stream',
++        timeout: 0,
++        params: { after: 7 },
++        headers: { Accept: 'text/event-stream', 'Last-Event-ID': '7' },
++      },
++    ]);
++    expect(JSON.stringify(request.mock.calls)).not.toContain('managementKey');
++    expect(resets).toEqual([8]);
++    expect(frames).toHaveLength(1);
++    expect(connected).toBe(true);
++  });
++
++  test('suppresses frames once the page stops owning the connection', async () => {
++    let active = true;
++    const captured = apiClient.captureConnection();
++    const stream = new ReadableStream<Uint8Array>({
++      start(controller) {
++        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(wireEvent)}\n\n`));
++        controller.close();
++      },
++    });
++    spyOn(captured, 'getRaw').mockResolvedValue({ data: stream } as Awaited<
++      ReturnType<typeof apiClient.getRaw>
++    >);
++    spyOn(apiClient, 'captureConnection').mockReturnValue(captured);
++    const client = createRegisterbotClient(() => active, new AbortController().signal);
++    const events: unknown[] = [];
++    await client.events(
++      0,
++      (event) => events.push(event),
++      () => undefined,
++      () => {
++        active = false;
++      }
++    );
++    expect(events).toEqual([]);
++  });
++});
+diff --git a/tests/xaiQuotaUnavailable.test.ts b/tests/xaiQuotaUnavailable.test.ts
+index 8b63c4e..7d762a4 100644
+--- a/tests/xaiQuotaUnavailable.test.ts
++++ b/tests/xaiQuotaUnavailable.test.ts
+@@ -29,6 +29,15 @@ const classes = bindQuotaClasses(
+ 
+ const WEEKLY_PERIOD_START = '2026-09-17T13:32:42.093205+00:00';
+ const WEEKLY_PERIOD_END = '2026-09-24T13:32:42.093205+00:00';
++const usd = (amount: string) => {
++  const [integer, fraction] = amount.split('.');
++  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' })
++    .formatToParts(0)
++    .map((part) =>
++      part.type === 'integer' ? integer : part.type === 'fraction' ? fraction : part.value
++    )
++    .join('');
++};
+ 
+ const weeklyConfig = (extra: XaiBillingConfig = {}): XaiBillingConfig => ({
+   currentPeriod: {
+@@ -207,8 +216,8 @@ describe('XaiQuotaBody unavailable weekly usage', () => {
+     expect(markup).toContain(formatInstantShort(Date.parse(WEEKLY_PERIOD_END)));
+     expect(markup).toContain('GrokChat usage');
+     expect(markup).toContain('Prepaid');
+-    expect(markup).toContain('$2.50');
+-    expect(markup).toContain('$0.00 / $0.00');
++    expect(markup).toContain(usd('2.50'));
++    expect(markup).toContain(`${usd('0.00')} / ${usd('0.00')}`);
+   });
+ 
+   test('renders product contributions as text with only one shared weekly meter', () => {
+@@ -265,8 +274,8 @@ describe('XaiQuotaBody unavailable weekly usage', () => {
+       )
+     );
+     expect(markup).toContain('>90%<');
+-    expect(markup).toContain('$135.00 / $150.00');
+-    expect(markup).not.toContain('$15.00 / $150.00');
++    expect(markup).toContain(`${usd('135.00')} / ${usd('150.00')}`);
++    expect(markup).not.toContain(`${usd('15.00')} / ${usd('150.00')}`);
+     expect(markup).toContain('width:90%');
+   });
+ 

@@ -1,0 +1,10 @@
+{
+  "version": "8.1.2-registerbot",
+  "date": "2026-11-25",
+  "backendCommit": "5d158ae3a1c0afec98b471f71ef2d233898e7680",
+  "panelCommit": "ccf193512aaafbbba10f0d1c17be515d109f7dc5",
+  "backendSha256": "4CB2BF601B0150F59BF796EE59454427E7A187604233BA8DB8471A732091D83D",
+  "panelSha256": "D62251AAAF635C3855E6BB459A41EC374E0AEF464FD083000D3099B7B9BF86E0",
+  "runtimeStateIncluded": false,
+  "credentialsIncluded": false
+}

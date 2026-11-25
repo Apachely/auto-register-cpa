@@ -1,0 +1,12 @@
+/cli-proxy-api.exe
+/management.html
+/*.zip
+/qa-profile/
+/*.pid
+/panel-verify*.log
+!/panel-verify-network-error.log
+/panel-portability-tests.log
+/write-panel-locales.cjs
+/verification/go-all.log
+/verification/go-all-final.log
+/verification/go-registerbot-final.log
