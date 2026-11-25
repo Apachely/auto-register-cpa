@@ -73,6 +73,25 @@ func googleIdentityHost(raw string) bool {
 	return errParse == nil && parsed.Hostname() == "accounts.google.com" && parsed.Scheme == "https"
 }
 
+func selectFreeAIRadio(ctx context.Context, session *Session, name, value string) error {
+	selector := "input[type=radio][name=" + jsString(name) + "][value=" + jsString(value) + "]"
+	checked := "(function(){var input=document.querySelector(" + jsString(selector) + ");return !!input&&input.checked;})()"
+	if current, errRead := session.Evaluate(ctx, checked, false); errRead == nil && current == true {
+		return nil
+	}
+	if errClick := session.ClickSelector(ctx, "label:has("+selector+")"); errClick != nil {
+		return errClick
+	}
+	current, errRead := session.Evaluate(ctx, checked, false)
+	if errRead != nil {
+		return errRead
+	}
+	if current != true {
+		return errInputValue
+	}
+	return nil
+}
+
 // Run retains an isolated page on manual handoff so the operator can resolve a
 // challenge and resume the same registration without submitting credentials again.
 func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, runErr error) {
@@ -126,6 +145,7 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 	var lastDispatch time.Time
 	lastActionIssue := ""
 	sawOnboarding, creditConfirmed := false, false
+	claimAttempted := false
 	ticker := time.NewTicker(700 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -152,9 +172,14 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			page.Action = "loading"
 		}
 		page = normalizeFreeAIPage(page)
+		creditConfirmed = creditConfirmed || page.CreditConfirmed
+		// The dashboard keeps its optional setup banner after Finish later. A
+		// confirmed survey must not send this same session back into that guide.
+		if page.Action == "onboarding_entry" && creditConfirmed && page.Key != "" {
+			page.Action = "key"
+		}
 		if strings.HasPrefix(page.Action, "onboarding_") {
 			sawOnboarding = true
-			creditConfirmed = creditConfirmed || page.CreditConfirmed
 		}
 		actionPath := ""
 		if parsed, errURL := url.Parse(page.URL); errURL == nil {
@@ -197,40 +222,39 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			task.Report("manual", "warn", "Google requires operator verification; finish in the retained browser and resume")
 			return harvest, ErrManualHandoff
 		}
+		// The submit label/fingerprint changes while the credit request is in
+		// flight. Do not interpret that change as permission to claim again.
+		if page.Action == "onboarding_profile" && claimAttempted {
+			acted = true
+		}
 		if !acted && errInspect == nil {
 			var errAction error
 			switch page.Action {
 			case "onboarding_entry":
 				errAction = session.Navigate(acquireCtx, "https://freeaiapikey.com/setup")
 			case "onboarding_profile":
-				if task.Channel.OnboardingRole == "" || task.Channel.OnboardingSource == "" {
-					task.Report("onboarding_profile_required", "warn", "configure the channel onboarding answers or complete the survey in the retained browser")
-					return harvest, ErrManualHandoff
-				}
-				errAction = session.ClickSelector(acquireCtx, `label:has(input[name=role][value="`+task.Channel.OnboardingRole+`"])`)
+				role, source := task.Channel.onboardingAnswers()
+				errAction = selectFreeAIRadio(acquireCtx, session, "role", role)
 				if errAction == nil {
-					errAction = session.ClickSelector(acquireCtx, `label:has(input[name=source][value="`+task.Channel.OnboardingSource+`"])`)
+					errAction = selectFreeAIRadio(acquireCtx, session, "source", source)
 				}
 				if errAction == nil {
+					claimAttempted = true
 					errAction = session.ClickText(acquireCtx, "Get my $5")
+					if errors.Is(errAction, errControlNotReady) {
+						claimAttempted = false // No input was dispatched; safely wait for the control.
+					}
 				}
-			case "onboarding_credit", "onboarding_tool", "onboarding_test":
-				errAction = session.ClickText(acquireCtx, "Continue")
-			case "onboarding_discord":
-				if !task.Channel.SkipOptionalDiscord {
-					task.Report("onboarding_discord", "warn", "optional Discord step awaits the operator; enable its skip preference to continue without linking Discord")
-					return harvest, ErrManualHandoff
-				}
-				errAction = session.ClickText(acquireCtx, "Skip for now")
-			case "onboarding_plans":
+			case "onboarding_credit", "onboarding_tool", "onboarding_test", "onboarding_discord", "onboarding_plans":
 				if !creditConfirmed {
-					task.Report("onboarding_credit_pending", "warn", "initial $5 credit has not been confirmed; onboarding remains incomplete")
+					task.Report("onboarding_credit_pending", "warn", "initial $5 credit has not been confirmed; retain the survey before import")
 					return harvest, ErrManualHandoff
 				}
-				errAction = session.ClickText(acquireCtx, "Open my dashboard")
+				errAction = session.ClickText(acquireCtx, "Finish later and go to my dashboard", "Open my dashboard")
 			case "onboarding_unknown":
-				task.Report("onboarding_unknown", "warn", "unrecognized onboarding step; continue in the retained browser")
-				return harvest, ErrManualHandoff
+				// Redirects can expose /setup before its controls are rendered.
+				// Wait within the existing step deadline, not an immediate handoff.
+				errAction = errControlNotReady
 			case "email":
 				if !googleIdentityHost(page.URL) {
 					return harvest, errors.New("registerbot: refusing credentials outside Google identity origin")
@@ -321,7 +345,7 @@ func freeAIStageMessage(stage string) string {
 	case "onboarding_profile":
 		return "completing the configured onboarding survey"
 	case "onboarding_credit":
-		return "initial $5 onboarding credit confirmed"
+		return "initial $5 credit confirmed; finishing the guide later and opening the dashboard"
 	case "onboarding_tool":
 		return "reviewing tool connection instructions"
 	case "onboarding_test":
@@ -384,26 +408,36 @@ const freeAIInspectScript = `(function(){
   else if(text.includes('choose an account')||text.includes('选择帐号')||text.includes('选择账号')){action='choose_account';}
   else if(Array.from(document.querySelectorAll('button,[role=button],input[type=submit]')).some(function(e){return visible(e)&&/^(continue|allow|i agree|next|继续|允许|我同意)$/i.test((e.innerText||e.value||'').trim());})){action='consent';}
  } else if(free){
+  var normal=(bodyText.match(/Normal(?:\s+credits)?\s+\$([0-9,.]+)/i)||[])[1];
+  creditConfirmed=!!normal&&Number(normal.replace(/,/g,''))>=5;
   if(path==='/setup'||path.startsWith('/setup/')){
-   var step=(bodyText.match(/Step\s+([1-5])\s+of\s+5/i)||[])[1];
-   var normal=(bodyText.match(/Normal\s+\$([0-9,.]+)/i)||[])[1];
-   creditConfirmed=!!normal&&Number(normal.replace(/,/g,''))>=5;
-   if(step==='1'){action=text.includes('$5.00 is in your balance.')&&creditConfirmed?'onboarding_credit':'onboarding_profile';}
+   var step=(bodyText.match(/\bStep\s*([1-5])\s*of\s*5\b/i)||[])[1];
+   creditConfirmed=creditConfirmed||(has('#surveyDone')&&text.includes('$5.00 is in your balance.'));
+   if(creditConfirmed){action='onboarding_credit';}
+   else if(has('#surveySubmit')||has('#surveyForm')||step==='1'){action='onboarding_profile';}
    else if(step==='2'){action='onboarding_tool';}
    else if(step==='3'){action='onboarding_test';}
    else if(step==='4'){action='onboarding_discord';}
    else if(step==='5'){action='onboarding_plans';}
    else{action='onboarding_unknown';}
-  } else if(path.startsWith('/dashboard')&&has('a[href="/setup"]')){action='onboarding_entry';}
-  else if(path.startsWith('/dashboard')){
+  } else if(path==='/dashboard'||path.startsWith('/dashboard/')){
    // Display text is truncated to 28 characters followed by an ellipsis. Only
    // the complete literal passed to the provider's Copy key action is usable.
    var copies=Array.from(document.querySelectorAll('button[title="Copy key"]')).filter(visible);
    for(var i=0;i<copies.length;i++){
+    // A dashboard may have several keys. Scope the copy action to the named
+    // Default Key row, never whichever Copy key button happens to be first.
+    var row=copies[i].parentElement, isDefault=false;
+    for(var depth=0;row&&row!==document.body&&depth<5;depth++,row=row.parentElement){
+     if(row.querySelectorAll('button[title="Copy key"]').length>1)break;
+     if(Array.from(row.querySelectorAll('p')).some(function(e){return visible(e)&&/^default key$/i.test((e.innerText||'').trim());})){isDefault=true;break;}
+    }
+    if(!isDefault)continue;
     var copied=(copies[i].getAttribute('onclick')||'').match(/^\s*copyKey\(\s*(['"])(sk-[A-Za-z0-9_-]{16,509})\1\s*\)\s*;?\s*$/);
     if(copied){key=copied[2];break;}
    }
-   if(key){action='key';}
+   if(has('a[href="/setup"]')&&!creditConfirmed){action='onboarding_entry';}
+   else if(key){action='key';}
    else if(/show api key|show key|reveal|显示|查看密钥/.test(text)){action='reveal';}
   } else if(/continue with google|sign in with google|使用 google/.test(text)){action='google';}
   else if(path!=='/register'&&path!=='/login'){action='dashboard';}

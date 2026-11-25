@@ -150,3 +150,33 @@ func TestRegisterBotVerificationMatchesPanelAutomaticModelAndTokenField(t *testi
 		t.Fatal("missing verification model accepted")
 	}
 }
+
+func TestRegisterBotVerificationReasoningAtTokenLimit(t *testing.T) {
+	for _, test := range []struct {
+		name, body string
+		valid      bool
+	}{
+		{"reasoning_content", `{"choices":[{"finish_reason":"length","message":{"role":"assistant","content":"","reasoning_content":"fixture output"}}],"usage":{"completion_tokens":5}}`, true},
+		{"reasoning_alias", `{"choices":[{"finish_reason":"length","message":{"role":"assistant","content":"","reasoning":"fixture output"}}],"usage":{"completion_tokens":5}}`, true},
+		{"no_output", `{"choices":[{"finish_reason":"length","message":{"role":"assistant","content":""}}],"usage":{"completion_tokens":5}}`, false},
+		{"whitespace_only", `{"choices":[{"finish_reason":"length","message":{"role":"assistant","reasoning":"  "}}],"usage":{"completion_tokens":5}}`, false},
+		{"no_completion_tokens", `{"choices":[{"finish_reason":"length","message":{"role":"assistant","reasoning":"fixture output"}}]}`, false},
+		{"not_token_limited", `{"choices":[{"finish_reason":"stop","message":{"role":"assistant","reasoning":"fixture output"}}],"usage":{"completion_tokens":5}}`, false},
+		{"error_with_reasoning", `{"error":{"message":"denied"},"choices":[{"finish_reason":"length","message":{"role":"assistant","reasoning":"fixture output"}}],"usage":{"completion_tokens":5}}`, false},
+		{"wrong_role", `{"choices":[{"finish_reason":"length","message":{"role":"user","reasoning":"fixture output"}}],"usage":{"completion_tokens":5}}`, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "Bearer "+importTestKey {
+					t.Error("missing authentication")
+				}
+				_, _ = w.Write([]byte(test.body))
+			}))
+			defer server.Close()
+			err := verifyRegisterBotKey(context.Background(), server.URL, "direct", importTestKey, registerBotProbeModel{Name: "fixture-model"})
+			if (err == nil) != test.valid {
+				t.Fatalf("accepted=%v want=%v error=%v", err == nil, test.valid, err)
+			}
+		})
+	}
+}

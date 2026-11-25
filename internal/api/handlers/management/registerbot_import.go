@@ -212,14 +212,29 @@ func verifyRegisterBotKey(ctx context.Context, endpoint, proxy, key string, mode
 	}
 	var completion struct {
 		Choices []struct {
-			Message struct {
-				Role    string `json:"role"`
-				Content string `json:"content"`
+			FinishReason string `json:"finish_reason"`
+			Message      struct {
+				Role             string `json:"role"`
+				Content          string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"`
+				Reasoning        string `json:"reasoning"`
 			} `json:"message"`
 		} `json:"choices"`
+		Usage struct {
+			CompletionTokens int `json:"completion_tokens"`
+		} `json:"usage"`
 		Error any `json:"error"`
 	}
-	if errDecode := json.Unmarshal(data, &completion); errDecode != nil || completion.Error != nil || len(completion.Choices) == 0 || completion.Choices[0].Message.Role != "assistant" || strings.TrimSpace(completion.Choices[0].Message.Content) == "" {
+	if errDecode := json.Unmarshal(data, &completion); errDecode != nil || completion.Error != nil || len(completion.Choices) == 0 || completion.Choices[0].Message.Role != "assistant" {
+		return errors.New("registerbot: key verification returned no assistant completion")
+	}
+	choice := completion.Choices[0]
+	// The five-token probe can be exhausted by reasoning before the model
+	// emits final content. Actual reasoning output plus a token-limited finish
+	// and nonzero generated tokens still proves authenticated inference.
+	reasoningAtLimit := choice.FinishReason == "length" && completion.Usage.CompletionTokens > 0 &&
+		(strings.TrimSpace(choice.Message.ReasoningContent) != "" || strings.TrimSpace(choice.Message.Reasoning) != "")
+	if strings.TrimSpace(choice.Message.Content) == "" && !reasoningAtLimit {
 		return errors.New("registerbot: key verification returned no assistant completion")
 	}
 	return nil

@@ -146,7 +146,7 @@ type ChannelSettings struct {
 	StartURL string `yaml:"start-url,omitempty" json:"start_url,omitempty"`
 	// ManualMode keeps the batch running without the gateway or a browser.
 	ManualMode bool `yaml:"manual-mode,omitempty" json:"manual_mode,omitempty"`
-	// Onboarding answers are operator-supplied facts, never inferred from an account.
+	// Onboarding answers use the operator-requested defaults when omitted.
 	OnboardingRole      string `yaml:"onboarding-role,omitempty" json:"onboarding_role,omitempty"`
 	OnboardingSource    string `yaml:"onboarding-source,omitempty" json:"onboarding_source,omitempty"`
 	SkipOptionalDiscord bool   `yaml:"skip-optional-discord,omitempty" json:"skip_optional_discord,omitempty"`
@@ -254,19 +254,32 @@ func DefaultSettings() Settings {
 // DefaultFreeAIChannel is the first shipped channel kind.
 func DefaultFreeAIChannel() ChannelSettings {
 	return ChannelSettings{
-		ID:              "freeaiapikey",
-		Kind:            ChannelKindFreeAIApiKey,
-		Name:            "FreeAIapikey",
-		Enabled:         true,
-		Provider:        "FreeAi",
-		ProxyURL:        "http://127.0.0.1:12450",
-		Concurrency:     1,
-		Group:           "节点选择",
-		RotateNode:      true,
-		IntervalSeconds: 45,
-		StepDelayMillis: 900,
-		MaxAttempts:     2,
+		ID:               "freeaiapikey",
+		Kind:             ChannelKindFreeAIApiKey,
+		Name:             "FreeAIapikey",
+		Enabled:          true,
+		Provider:         "FreeAi",
+		ProxyURL:         "http://127.0.0.1:12450",
+		Concurrency:      1,
+		Group:            "节点选择",
+		RotateNode:       true,
+		IntervalSeconds:  45,
+		StepDelayMillis:  900,
+		MaxAttempts:      2,
+		OnboardingRole:   "student",
+		OnboardingSource: "google",
 	}
+}
+
+func (c ChannelSettings) onboardingAnswers() (string, string) {
+	role, source := strings.TrimSpace(c.OnboardingRole), strings.TrimSpace(c.OnboardingSource)
+	if role == "" {
+		role = "student"
+	}
+	if source == "" {
+		source = "google"
+	}
+	return role, source
 }
 
 // Normalize fills defaults and clamps unsafe values.
@@ -342,6 +355,9 @@ func (s *Settings) Normalize() {
 		}
 		if ch.Kind == "" {
 			ch.Kind = ChannelKindFreeAIApiKey
+		}
+		if ch.Kind == ChannelKindFreeAIApiKey {
+			ch.OnboardingRole, ch.OnboardingSource = ch.onboardingAnswers()
 		}
 		if ch.Name == "" {
 			ch.Name = ch.ID

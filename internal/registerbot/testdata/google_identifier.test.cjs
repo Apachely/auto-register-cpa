@@ -85,6 +85,8 @@ console.log('Google identifier, visible password, Workspace consent, and network
 const fullKey = 'sk-' + 'A'.repeat(43);
 const shortened = fullKey.slice(0, 28) + '…';
 const copy = Object.assign(field('copy-key', '', 'button'), {tagName:'BUTTON', title:'Copy key'});
+const defaultLabel = Object.assign(field('default-label','',''), {tagName:'P', innerText:'Default Key'});
+copy.parentElement = {querySelectorAll: selector => selector === 'p' ? [defaultLabel] : selector === 'button[title="Copy key"]' ? [copy] : [], parentElement:null};
 copy.setAttribute('onclick', "copyKey('" + fullKey + "')");
 const dashboard = makeContext([copy], 'API Keys\nDefault Key\n' + shortened, 'https://freeaiapikey.com/dashboard');
 assert.equal(vm.runInContext(inspect, dashboard).key, fullKey);
@@ -98,15 +100,15 @@ copy.setAttribute('onclick', "copyKey('" + fullKey + "')");
 const setupLink=Object.assign(field('setup-link','',''),{tagName:'A',href:'/setup'});
 const pendingSetup=makeContext([copy,setupLink],'Get $5 in free credit\nAPI Keys\n'+shortened,'https://freeaiapikey.com/dashboard');
 assert.equal(vm.runInContext(inspect,pendingSetup).action,'onboarding_entry');
-assert.equal(vm.runInContext(inspect,pendingSetup).key,'');
+assert.equal(vm.runInContext(inspect,pendingSetup).key,fullKey);
 const unpaid=makeContext([], 'Step 1 of 5\nYour balance +$5.00\nNormal $0.00 · Bonus $0.00','https://freeaiapikey.com/setup');
 assert.equal(vm.runInContext(inspect,unpaid).action,'onboarding_profile');
 assert.equal(vm.runInContext(inspect,unpaid).credit_confirmed,false);
 const paid=makeContext([], 'Step 1 of 5\nNormal $5.00 · Bonus $0.00\n$5.00 is in your balance.','https://freeaiapikey.com/setup');
 assert.equal(vm.runInContext(inspect,paid).action,'onboarding_credit');
 assert.equal(vm.runInContext(inspect,paid).credit_confirmed,true);
-for(const [step,action] of [[2,'onboarding_tool'],[3,'onboarding_test'],[4,'onboarding_discord'],[5,'onboarding_plans']]){
+for(const step of [2,3,4,5]){
  const current=makeContext([],`Step ${step} of 5\nNormal $5.00 · Bonus $0.00`,'https://freeaiapikey.com/setup');
- assert.equal(vm.runInContext(inspect,current).action,action);
+ assert.equal(vm.runInContext(inspect,current).action,'onboarding_credit');
 }
-console.log('Required onboarding precedes key capture; promotional text is not credited balance');
+console.log('Survey precedes import; paid tutorial pages use Finish later; promotional text is not credited balance');

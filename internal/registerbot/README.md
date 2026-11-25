@@ -56,18 +56,37 @@ by the evidence helper.
 
 ## Gateway and browser behavior
 
-FreeAI onboarding is mandatory before automatic key capture. The channel's
-`onboarding-role` and `onboarding-source` contain operator-supplied survey answers.
-The driver confirms the initial $5 credit, follows all five setup pages, and uses
-the existing plan. It skips the separate Discord reward only when
-`skip-optional-discord` is explicitly enabled; otherwise that step is handed to
-the operator. Missing answers or unconfirmed credit retain the page for manual
-completion. Updating channel answers takes effect when a retained task resumes.
+The FreeAI completion path is: select the configured survey answers, click
+`Get my $5` once, observe credit confirmation, click
+`Finish later and go to my dashboard`, and capture the complete `Default Key`.
+The defaults are `onboarding-role: student` and `onboarding-source: google`,
+including old persisted channels where those fields are empty. The fields remain
+configurable. Updating answers takes effect
+when a retained task resumes.
+
+On a first visit, `/setup` may appear before its controls render. The driver
+waits within the acquisition deadline, recognizes the actual submit control
+even when the form uses `display: contents`, and reads back both checked radio
+states before submitting. A transient unknown setup state is not an immediate
+manual handoff.
+
+The optional coding-tool, test, Discord and plan tutorials are not required.
+The dashboard keeps its `Finish setup` banner after Finish later: confirmed
+credit plus the Default Key takes precedence over that banner, including on
+resume. A changed submit label or DOM redraw never authorizes a second credit
+claim. Unconfirmed credit or an unrecognized page retains manual recovery.
+`skip-optional-discord` remains a compatible stored setting but the fast path
+does not enter the Discord tutorial.
 
 Dashboard key labels are truncated. Keys are read only from the full literal in
-the provider's `Copy key` action. The public model catalog is not an authentication
+the provider's `Copy key` action inside the named Default Key row, never another
+key or the shortened display text. The public model catalog is not an authentication
 check: importing requires a successful, bounded-output chat completion using the
 destination's first configured model, matching the panel's automatic key test.
+A five-token response exhausted during reasoning is accepted only when it has
+an assistant role, nonempty reasoning output, `finish_reason: length`, and a
+positive completion-token count. Empty output, error bodies, redirects and
+public model lists still fail verification.
 
 Gateway fallback is `controller -> proxy_only -> disabled`. Discovery tries an
 explicit controller first, then candidates derived from the forwarding port; the
@@ -201,6 +220,10 @@ responses in events. Focused checks are:
 go test ./internal/registerbot ./internal/api/handlers/management
 go vet ./internal/registerbot
 go build ./cmd/server
+node internal/registerbot/testdata/google_identifier.test.cjs
+node internal/registerbot/testdata/onboarding_completion.test.cjs
+# Optional installed-browser regression; all page requests use local fixtures:
+REGISTERBOT_BROWSER_SMOKE=1 go test ./internal/registerbot -run TestFreeAIFreshSurveyBrowser -v -count=1
 ```
 
 Unit tests exercise queue behavior, encrypted recovery, cancellation, gateway and
