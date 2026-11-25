@@ -1,0 +1,21 @@
+CLIProxyAPI local install
+Version: 8.1.2
+Source: https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.1.2
+Asset: CLIProxyAPI_8.1.2_windows_amd64.zip
+SHA256: f7032bfa516350698d5dadcaa305991d0a85d000b9dc7c8c6742071ec7f2f8fc
+Checksums.txt SHA256: 72623442c8129cf39ceed31c7da743c1a07e11566a3ebc1f96e954bc2effbded
+Verified against official checksums.txt and the GitHub release asset digest.
+
+Bind: 127.0.0.1:8317 (localhost only)
+Start: .\start.ps1
+Stop:  .\stop.ps1
+Client API key file: client-api-key.txt
+Config: config.yaml
+Logs: logs\
+
+Upstream API URL, protocol, and upstream API key are not configured yet.
+Do not share client-api-key.txt or config.yaml.
+
+Management UI: http://127.0.0.1:8317/management.html
+Admin key file: admin-key.txt
+Remote management remains disabled.

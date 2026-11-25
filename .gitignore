@@ -1,0 +1,20 @@
+# Local credentials and runtime configuration
+/admin-key.txt
+/client-api-key.txt
+/auth/
+/config.yaml
+/config.yaml.bak*
+/.env
+/.env.*
+!/.env.example
+
+# Local release assets and runtime state
+/_download/
+/cli-proxy-api.exe
+/static/management.html
+/logs/
+/*.pid
+
+# Upstream source checkouts track their own git histories.
+/cpa-dev/cpa-backend/
+/cpa-dev/cpa-panel/

@@ -1,0 +1,1397 @@
+diff --git a/src/components/layout/MainLayout.tsx b/src/components/layout/MainLayout.tsx
+index 495d5e762d259b98c95e0aa2cf9f7da596dc604b..b6c93e85213940025f8797e3d6028f15147ec85d 100644
+--- a/src/components/layout/MainLayout.tsx
++++ b/src/components/layout/MainLayout.tsx
+@@ -35,6 +35,7 @@ import {
+   IconSidebarRouting,
+   IconSidebarSystem,
+   IconChevronDown,
++  IconUpload,
+ } from '@/components/ui/icons';
+ import { INLINE_LOGO_JPEG } from '@/assets/logoInline';
+ import {
+@@ -641,6 +642,12 @@ export function MainLayout() {
+           metaKey: 'nav_meta.ai_providers',
+           icon: sidebarIcons.aiProviders,
+         },
++        {
++          path: '/provider-key-import',
++          labelKey: 'provider_key_import.nav',
++          metaKey: 'provider_key_import.nav_hint',
++          icon: <IconUpload size={18} />,
++        },
+         {
+           path: '/auth-files',
+           labelKey: 'nav.auth_files',
+diff --git a/src/features/providerKeyImport/ProviderKeyImportPage.module.scss b/src/features/providerKeyImport/ProviderKeyImportPage.module.scss
+new file mode 100644
+index 0000000000000000000000000000000000000000..cea1826c178143b596d26bb6036e866bd652cd27
+--- /dev/null
++++ b/src/features/providerKeyImport/ProviderKeyImportPage.module.scss
+@@ -0,0 +1,130 @@
++.page {
++  display: flex;
++  flex-direction: column;
++  gap: $spacing-lg;
++  min-width: 0;
++}
++
++.header {
++  display: flex;
++  align-items: flex-start;
++  gap: $spacing-md;
++  color: var(--text-primary);
++
++  svg {
++    flex: none;
++    margin-top: $spacing-xs;
++    color: var(--text-secondary);
++  }
++
++  h1 {
++    font-size: clamp(20px, 3vw, 26px);
++    font-weight: 700;
++  }
++
++  p {
++    margin-top: $spacing-xs;
++    color: var(--text-secondary);
++    font-size: 13px;
++  }
++}
++
++.workspace {
++  display: grid;
++  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
++  align-items: start;
++  gap: $spacing-md;
++
++  @media (max-width: $breakpoint-tablet) {
++    grid-template-columns: minmax(0, 1fr);
++  }
++}
++
++.card {
++  min-width: 0;
++}
++
++.keys {
++  resize: vertical;
++  font-family: $font-mono;
++  font-size: 13px;
++}
++
++.hint {
++  color: var(--text-secondary);
++  font-size: 13px;
++}
++
++.stage {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  gap: $spacing-sm;
++}
++
++.progress {
++  display: block;
++  width: 100%;
++  height: 8px;
++  margin: $spacing-md 0;
++  accent-color: var(--primary-color);
++}
++
++.timeline,
++.rows {
++  &:not(:empty) {
++    margin-top: $spacing-md;
++    border-top: 0.5px solid var(--border-color);
++  }
++
++  li {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: $spacing-sm;
++    padding: $spacing-sm 0;
++    border-bottom: 0.5px solid var(--border-color);
++    font-size: 13px;
++  }
++}
++
++.timeline {
++  color: var(--text-secondary);
++
++  time {
++    font-variant-numeric: tabular-nums;
++  }
++}
++
++.rows {
++  max-height: 280px;
++  overflow-y: auto;
++}
++
++.result {
++  padding: 2px 8px;
++  border: 0.5px solid var(--border-color);
++  border-radius: $radius-full;
++  background: var(--bg-tertiary);
++  color: var(--text-secondary);
++  font-size: 12px;
++
++  &[data-status='added'] {
++    background: var(--success-badge-bg);
++    color: var(--success-badge-text);
++    border-color: var(--success-badge-border);
++  }
++
++  &[data-status='invalid'],
++  &[data-status='not_written'] {
++    background: var(--failure-badge-bg);
++    color: var(--failure-badge-text);
++    border-color: var(--failure-badge-border);
++  }
++
++  &[data-status='unknown'] {
++    background: var(--amber-10);
++    color: var(--amber-text);
++    border-color: var(--amber-30);
++  }
++}
+diff --git a/src/features/providerKeyImport/ProviderKeyImportPage.tsx b/src/features/providerKeyImport/ProviderKeyImportPage.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..c4a79b1bb62f26ee7fdc67e0d01bcd62dc57a1dc
+--- /dev/null
++++ b/src/features/providerKeyImport/ProviderKeyImportPage.tsx
+@@ -0,0 +1,262 @@
++import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
++import { useTranslation } from 'react-i18next';
++import { usePageTransitionLayer } from '@/components/common/PageTransitionLayer';
++import { Button } from '@/components/ui/Button';
++import { Card } from '@/components/ui/Card';
++import { EmptyState } from '@/components/ui/EmptyState';
++import { IconUpload } from '@/components/ui/icons';
++import { Select } from '@/components/ui/Select';
++import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
++import { apiClient } from '@/services/api/client';
++import { createProviderKeyImportClient } from '@/services/api/providerKeyImport';
++import { useAuthStore, useConfigStore } from '@/stores';
++import {
++  findImportDestinations,
++  importDestinationLabel,
++  MAX_KEY_IMPORT_ROWS,
++  runProviderKeyImport,
++  type ImportDestination,
++  type ImportStage,
++  type ImportUpdate,
++} from './batch';
++import styles from './ProviderKeyImportPage.module.scss';
++
++type DestinationList =
++  { state: 'loading' | 'error' } | { state: 'ready'; items: ImportDestination[] };
++
++type TimelineEntry = { stage: ImportStage; at: number };
++
++function ImportWorkbench() {
++  const { t, i18n } = useTranslation();
++  const id = useId();
++  const textareaRef = useRef<HTMLTextAreaElement>(null);
++  const loadRef = useRef<AbortController | null>(null);
++  const importRef = useRef<AbortController | null>(null);
++  const [destinations, setDestinations] = useState<DestinationList>({ state: 'loading' });
++  const [selection, setSelection] = useState('');
++  const [update, setUpdate] = useState<ImportUpdate | null>(null);
++  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
++  const [hasInput, setHasInput] = useState(false);
++  const busy = update !== null && update.stage !== 'finished';
++
++  const resetDraft = useCallback(() => {
++    if (textareaRef.current) textareaRef.current.value = '';
++    setHasInput(false);
++    setUpdate(null);
++    setTimeline([]);
++  }, []);
++
++  const load = useCallback(async () => {
++    if (importRef.current) return;
++    loadRef.current?.abort();
++    const controller = new AbortController();
++    loadRef.current = controller;
++    const client = createProviderKeyImportClient(
++      () => loadRef.current === controller,
++      controller.signal
++    );
++    resetDraft();
++    setSelection('');
++    setDestinations({ state: 'loading' });
++    try {
++      const { groups } = await client.read();
++      if (!client.isCurrent()) return;
++      const items = findImportDestinations(groups);
++      setDestinations({ state: 'ready', items });
++      if (items.length === 1) setSelection('0');
++    } catch {
++      if (client.isCurrent()) setDestinations({ state: 'error' });
++    } finally {
++      if (loadRef.current === controller) loadRef.current = null;
++    }
++  }, [resetDraft]);
++
++  useHeaderRefresh(load);
++  useEffect(() => {
++    void load();
++    return () => {
++      loadRef.current?.abort();
++      importRef.current?.abort();
++    };
++  }, [load]);
++
++  const options = useMemo(
++    () =>
++      destinations.state === 'ready'
++        ? destinations.items.map((item, index) => ({
++            value: String(index),
++            label: importDestinationLabel(item),
++          }))
++        : [],
++    [destinations]
++  );
++  const target =
++    destinations.state === 'ready' && selection !== ''
++      ? destinations.items[Number(selection)]?.target
++      : undefined;
++  const total = update?.rows.length ?? 0;
++  const completed = update?.rows.filter(({ status }) => status !== 'pending').length ?? 0;
++  const stage = update?.stage ?? 'idle';
++
++  const submit = async (event: FormEvent<HTMLFormElement>) => {
++    event.preventDefault();
++    if (importRef.current || !target || !textareaRef.current) return;
++    const source = textareaRef.current.value;
++    if (!source.trim()) return;
++    resetDraft();
++    const controller = new AbortController();
++    importRef.current = controller;
++    const client = createProviderKeyImportClient(
++      () => importRef.current === controller,
++      controller.signal
++    );
++    try {
++      await runProviderKeyImport(client, target, source, (next) => {
++        setUpdate(next);
++        const at = Date.now();
++        setTimeline((previous) => [...previous, { stage: next.stage, at }]);
++        if (next.rows.some(({ status }) => status === 'added' || status === 'unknown')) {
++          useConfigStore.getState().clearCache('openai-compatibility');
++        }
++      });
++    } finally {
++      if (importRef.current === controller) importRef.current = null;
++    }
++  };
++
++  return (
++    <div className={styles.workspace}>
++      <Card className={styles.card} title={t('provider_key_import.input_title')}>
++        {destinations.state === 'loading' ? (
++          <p role="status" className={styles.hint}>
++            {t('provider_key_import.loading')}
++          </p>
++        ) : destinations.state === 'error' ? (
++          <EmptyState
++            title={t('provider_key_import.load_failed')}
++            action={
++              <Button variant="secondary" size="sm" onClick={() => void load()}>
++                {t('provider_key_import.reload')}
++              </Button>
++            }
++          />
++        ) : options.length === 0 ? (
++          <EmptyState
++            title={t('provider_key_import.no_destinations')}
++            description={t('provider_key_import.no_destinations_hint')}
++          />
++        ) : (
++          <form onSubmit={(event) => void submit(event)}>
++            <div className="form-group">
++              <label htmlFor={`${id}-destination`}>{t('provider_key_import.destination')}</label>
++              <Select
++                id={`${id}-destination`}
++                value={selection}
++                options={options}
++                placeholder={t('provider_key_import.choose_destination')}
++                disabled={busy}
++                onChange={(value) => {
++                  resetDraft();
++                  setSelection(value);
++                }}
++              />
++            </div>
++            <div className="form-group">
++              <label htmlFor={`${id}-keys`}>{t('provider_key_import.keys')}</label>
++              <textarea
++                id={`${id}-keys`}
++                ref={textareaRef}
++                className={styles.keys}
++                rows={7}
++                autoComplete="off"
++                autoCapitalize="off"
++                spellCheck={false}
++                disabled={!target || busy}
++                aria-describedby={`${id}-hint`}
++                onInput={(event) => setHasInput(Boolean(event.currentTarget.value.trim()))}
++              />
++              <p id={`${id}-hint`} className="hint">
++                {t('provider_key_import.key_hint', { limit: MAX_KEY_IMPORT_ROWS })}
++              </p>
++            </div>
++            <Button type="submit" loading={busy} disabled={!target || !hasInput}>
++              {t('provider_key_import.import')}
++            </Button>
++          </form>
++        )}
++      </Card>
++      <Card className={styles.card} title={t('provider_key_import.progress_title')}>
++        <p className={styles.stage}>
++          <span className="pill">{t(`provider_key_import.stage.${stage}`)}</span>
++          {total > 0 && (
++            <span className={styles.hint}>
++              {t('provider_key_import.completed', { done: completed, total })}
++            </span>
++          )}
++        </p>
++        {total > 0 && (
++          <progress
++            className={styles.progress}
++            max={total}
++            value={completed}
++            aria-label={t('provider_key_import.progress_title')}
++          />
++        )}
++        {update?.error && (
++          <div className="error-box" role="alert">
++            {t(`provider_key_import.error.${update.error}`)}
++          </div>
++        )}
++        <ol className={styles.timeline} role="log" aria-label={t('provider_key_import.timeline')}>
++          {timeline.map(({ stage: entryStage, at }) => (
++            <li key={entryStage}>
++              <time dateTime={new Date(at).toISOString()}>
++                {new Date(at).toLocaleTimeString(i18n.language)}
++              </time>
++              <span>{t(`provider_key_import.stage.${entryStage}`)}</span>
++            </li>
++          ))}
++        </ol>
++        {update && total > 0 && (
++          <ul className={styles.rows} aria-label={t('provider_key_import.rows')}>
++            {update.rows.map(({ line, status }) => (
++              <li key={line}>
++                <span>{t('provider_key_import.line', { line })}</span>
++                <span className={styles.result} data-status={status}>
++                  {t(`provider_key_import.row.${status}`)}
++                </span>
++              </li>
++            ))}
++          </ul>
++        )}
++      </Card>
++    </div>
++  );
++}
++
++export function ProviderKeyImportPage() {
++  const { t } = useTranslation();
++  const current = usePageTransitionLayer()?.isCurrentLayer ?? true;
++  const revision = useAuthStore((state) =>
++    state.isAuthenticated && state.connectionStatus === 'connected'
++      ? apiClient.getConnectionRevision()
++      : -1
++  );
++  return (
++    <div className={styles.page}>
++      <header className={styles.header}>
++        <IconUpload size={24} />
++        <div>
++          <h1>{t('provider_key_import.title')}</h1>
++          <p>{t('provider_key_import.description')}</p>
++        </div>
++      </header>
++      {current &&
++        (revision >= 0 ? (
++          <ImportWorkbench key={revision} />
++        ) : (
++          <EmptyState title={t('notification.connection_required')} />
++        ))}
++    </div>
++  );
++}
+diff --git a/src/features/providerKeyImport/batch.ts b/src/features/providerKeyImport/batch.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..0d92b5571e44e8ed0df9949f26d7fb8df4cbc8ec
+--- /dev/null
++++ b/src/features/providerKeyImport/batch.ts
+@@ -0,0 +1,233 @@
++import { isRecord } from '@/utils/helpers';
++
++export const MAX_KEY_IMPORT_ROWS = 100;
++export const MAX_KEY_IMPORT_LENGTH = MAX_KEY_IMPORT_ROWS * 514;
++
++export interface ImportTarget {
++  name: string;
++  baseUrl: string;
++  prefix: string;
++}
++
++export interface ImportDestination {
++  target: ImportTarget;
++  endpoint: string;
++}
++
++export type ImportStage = 'validating' | 'reading' | 'writing' | 'finished';
++export type RowStatus =
++  'invalid' | 'duplicate' | 'already_present' | 'pending' | 'added' | 'not_written' | 'unknown';
++
++export interface ImportRow {
++  line: number;
++  status: RowStatus;
++}
++
++type ImportError =
++  | 'empty'
++  | 'batch_limit'
++  | 'config_unavailable'
++  | 'destination_changed'
++  | 'proxy_mismatch'
++  | 'conflict'
++  | 'write_rejected'
++  | 'write_unconfirmed';
++
++export interface ImportUpdate {
++  stage: ImportStage;
++  rows: readonly ImportRow[];
++  error?: ImportError;
++}
++
++interface ImportClient {
++  read(): Promise<{ groups: Record<string, unknown>[]; etag: string }>;
++  write(groups: Record<string, unknown>[], etag: string): Promise<void>;
++  isCurrent(): boolean;
++}
++
++function targetOf(group: Record<string, unknown>): ImportTarget | null {
++  const name = typeof group.name === 'string' ? group.name.trim() : '';
++  const baseUrl = typeof group['base-url'] === 'string' ? group['base-url'].trim() : '';
++  const prefix = typeof group.prefix === 'string' ? group.prefix.trim() : '';
++  if (!name || !/^https?:\/\//i.test(baseUrl)) return null;
++  try {
++    const url = new URL(baseUrl);
++    if (
++      !['https:', 'http:'].includes(url.protocol) ||
++      url.username ||
++      url.password ||
++      url.search ||
++      url.hash
++    )
++      return null;
++  } catch {
++    return null;
++  }
++  return { name, baseUrl, prefix };
++}
++
++function sameTarget(a: ImportTarget | null, b: ImportTarget): boolean {
++  return a !== null && a.name === b.name && a.baseUrl === b.baseUrl && a.prefix === b.prefix;
++}
++
++export function importDestinationLabel({ target, endpoint }: ImportDestination): string {
++  return [target.name, endpoint, target.prefix].filter(Boolean).join(' · ');
++}
++
++export function findImportDestinations(groups: Record<string, unknown>[]): ImportDestination[] {
++  const counts = new Map<string, number>();
++  const candidates = groups.flatMap((group) => {
++    const target = targetOf(group);
++    if (!target) return [];
++    const url = new URL(target.baseUrl);
++    const candidate = { target, endpoint: `${url.origin}${url.pathname}` };
++    const label = importDestinationLabel(candidate);
++    counts.set(label, (counts.get(label) ?? 0) + 1);
++    return [candidate];
++  });
++  // The displayed identity must also be unambiguous after URL normalization.
++  return candidates.filter((candidate) => counts.get(importDestinationLabel(candidate)) === 1);
++}
++
++function parseRows(source: string) {
++  const rows: ImportRow[] = [];
++  const keys = new Map<number, string>();
++  const seen = new Set<string>();
++  for (const [index, value] of source.split(/\r\n?|\n/).entries()) {
++    const key = value.trim();
++    if (!key) continue;
++    const line = index + 1;
++    // Only one opaque key per line; URLs, account/password pairs and headers are not imports.
++    if (!/^[A-Za-z0-9._~+/=-]{8,512}$/.test(key)) {
++      rows.push({ line, status: 'invalid' });
++    } else if (seen.has(key)) {
++      rows.push({ line, status: 'duplicate' });
++    } else {
++      seen.add(key);
++      keys.set(line, key);
++      rows.push({ line, status: 'pending' });
++    }
++  }
++  return { rows, keys };
++}
++
++function statusOf(error: unknown) {
++  return isRecord(error) && typeof error.status === 'number' ? error.status : undefined;
++}
++
++function canRoundTripGroups(groups: Record<string, unknown>[]): boolean {
++  // The v8 endpoint replaces the family as a whole. Do not reserialize config
++  // numbers the browser may already have rounded or parsed as infinity.
++  const remaining: unknown[] = [groups];
++  while (remaining.length) {
++    const value = remaining.pop();
++    if (typeof value === 'number') {
++      if (!Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER) return false;
++    } else if (Array.isArray(value)) {
++      for (const item of value) remaining.push(item);
++    } else if (isRecord(value)) {
++      for (const item of Object.values(value)) remaining.push(item);
++    }
++  }
++  return true;
++}
++
++/** All progress data is safe to display: only stages, line numbers, outcomes and fixed error codes. */
++export async function runProviderKeyImport(
++  client: ImportClient,
++  destination: ImportTarget,
++  source: string,
++  onUpdate: (update: ImportUpdate) => void
++): Promise<void> {
++  let rows: ImportRow[] = [];
++  const emit = (stage: ImportStage, error?: ImportError) => {
++    if (client.isCurrent()) onUpdate({ stage, rows, error });
++  };
++  const finish = (status: RowStatus, error?: ImportError) => {
++    rows = rows.map((row) => (row.status === 'pending' ? { ...row, status } : row));
++    emit('finished', error);
++  };
++  emit('validating');
++  if (!client.isCurrent()) return;
++  if (source.length > MAX_KEY_IMPORT_LENGTH) return finish('not_written', 'batch_limit');
++  const parsed = parseRows(source);
++  try {
++    rows = parsed.rows;
++    if (rows.length > MAX_KEY_IMPORT_ROWS) {
++      rows = [];
++      return finish('not_written', 'batch_limit');
++    }
++    if (rows.length === 0) return finish('not_written', 'empty');
++    if (parsed.keys.size === 0) return finish('not_written');
++
++    emit('reading');
++    let snapshot: Awaited<ReturnType<ImportClient['read']>>;
++    try {
++      snapshot = await client.read();
++    } catch {
++      return finish('not_written', 'config_unavailable');
++    }
++    if (!client.isCurrent()) return;
++    const { groups, etag } = snapshot;
++    // CPA v8 uses the on-disk SHA-256 as a strong quoted ETag. Never write without it.
++    if (!/^"[a-f0-9]{64}"$/.test(etag)) return finish('not_written', 'config_unavailable');
++    if (!findImportDestinations(groups).some(({ target }) => sameTarget(target, destination))) {
++      return finish('not_written', 'destination_changed');
++    }
++    const group = groups.find((item) => sameTarget(targetOf(item), destination));
++    if (!group) return finish('not_written', 'destination_changed');
++    const existing = group.keys;
++    if (!Array.isArray(existing) || !existing.every(isRecord)) {
++      return finish('not_written', 'config_unavailable');
++    }
++    const seen = new Set(
++      existing.flatMap((entry) =>
++        typeof entry['api-key'] === 'string' ? [entry['api-key'].trim()] : []
++      )
++    );
++    rows = rows.map((row) => {
++      const key = parsed.keys.get(row.line);
++      if (!key || !seen.has(key)) return row;
++      parsed.keys.delete(row.line);
++      return { ...row, status: 'already_present' };
++    });
++    if (parsed.keys.size === 0) return finish('not_written');
++    if (!canRoundTripGroups(groups)) return finish('not_written', 'config_unavailable');
++
++    // Keep the current provider's ordinary CPA egress policy. Do not pick a route
++    // when existing credentials disagree, and do not contact any proxy/upstream.
++    const existingProxies = new Set(
++      existing.map((entry) => {
++        const proxy = entry['proxy-url'];
++        return proxy == null ? '' : typeof proxy === 'string' ? proxy.trim() : null;
++      })
++    );
++    if (existingProxies.has(null) || existingProxies.size > 1) {
++      return finish('not_written', 'proxy_mismatch');
++    }
++    const proxy = existingProxies.values().next().value;
++    const additions = Array.from(parsed.keys.values(), (key) => ({
++      'api-key': key,
++      ...(proxy ? { 'proxy-url': proxy } : {}),
++    }));
++    const next = groups.map((item) =>
++      item === group ? { ...group, keys: [...existing, ...additions] } : item
++    );
++    emit('writing');
++    if (!client.isCurrent()) return;
++    try {
++      await client.write(next, etag);
++      finish('added');
++    } catch (error: unknown) {
++      const status = statusOf(error);
++      if (status === 409 || status === 412) return finish('not_written', 'conflict');
++      if (status !== undefined && status >= 400 && status < 500 && status !== 408) {
++        return finish('not_written', 'write_rejected');
++      }
++      // A lost response is not proof that CPA did not save the batch.
++      finish('unknown', 'write_unconfirmed');
++    }
++  } finally {
++    parsed.keys.clear();
++  }
++}
+diff --git a/src/i18n/locales/en.json b/src/i18n/locales/en.json
+index c732027d9c269453cfa844b935b1ad063580e9f9..34aa4e19bca8293eb2710e6389f0be06a22c0b4b 100644
+--- a/src/i18n/locales/en.json
++++ b/src/i18n/locales/en.json
+@@ -134,6 +134,54 @@
+     "config_management": "Gateway configuration",
+     "system_info": "Runtime & diagnostics"
+   },
++  "provider_key_import": {
++    "nav": "Key import",
++    "nav_hint": "Add issued API keys in a batch",
++    "title": "Batch import API keys",
++    "description": "Add issued keys to an existing OpenAI-compatible provider. Existing keys and model settings are kept.",
++    "input_title": "Import settings",
++    "loading": "Reading providers…",
++    "load_failed": "Could not read provider configuration",
++    "reload": "Reload",
++    "no_destinations": "No eligible providers",
++    "no_destinations_hint": "Set up an unambiguous OpenAI-compatible provider under AI Providers first.",
++    "destination": "Destination provider",
++    "choose_destination": "Select a provider",
++    "keys": "Issued API keys",
++    "key_hint": "One key per line, up to {{limit}} lines. Do not enter accounts or passwords. The input clears on submission; results show line numbers only.",
++    "import": "Import into provider",
++    "progress_title": "Import progress",
++    "completed": "Processed {{done}} / {{total}} lines",
++    "timeline": "Stage history",
++    "rows": "Per-line import results",
++    "line": "Line {{line}}",
++    "stage": {
++      "idle": "Waiting for submission",
++      "validating": "Validating input format",
++      "reading": "Reading configuration and checking duplicates",
++      "writing": "Waiting for CPA to save configuration",
++      "finished": "Finished processing"
++    },
++    "row": {
++      "invalid": "Invalid format",
++      "duplicate": "Duplicate in batch",
++      "already_present": "Already present, unchanged",
++      "pending": "Waiting to save",
++      "added": "Saved",
++      "not_written": "Not written",
++      "unknown": "Save not confirmed"
++    },
++    "error": {
++      "empty": "Enter at least one key.",
++      "batch_limit": "The batch exceeds the line or character limit. Split it and try again.",
++      "config_unavailable": "The current configuration or its version identifier could not be read. Nothing was written.",
++      "destination_changed": "The destination changed or is ambiguous. Reload and select it again.",
++      "proxy_mismatch": "The existing keys use different proxy settings. Set the new key's proxy in the provider editor.",
++      "conflict": "Another operation updated the configuration. Nothing was written. Check the configuration before resubmitting.",
++      "write_rejected": "CPA rejected the write. Check the destination configuration and management permissions.",
++      "write_unconfirmed": "CPA did not confirm the save. Check AI Providers for the keys before deciding whether to retry."
++    }
++  },
+   "dashboard": {
+     "hero_verdict_good": "All systems steady",
+     "hero_verdict_warning": "Minor turbulence",
+diff --git a/src/i18n/locales/ko.json b/src/i18n/locales/ko.json
+index 23ce80f3182e354bbedd877ae76a17d4a6e9c4e8..160ec16891491ac33debbd7929ac599dbc40df51 100644
+--- a/src/i18n/locales/ko.json
++++ b/src/i18n/locales/ko.json
+@@ -134,6 +134,54 @@
+     "config_management": "게이트웨이 설정",
+     "system_info": "런타임 및 진단"
+   },
++  "provider_key_import": {
++    "nav": "키 가져오기",
++    "nav_hint": "발급된 API 키 일괄 추가",
++    "title": "API 키 일괄 가져오기",
++    "description": "발급된 키를 기존 OpenAI 호환 제공업체에 추가합니다. 기존 키와 모델 설정은 유지됩니다.",
++    "input_title": "가져오기 설정",
++    "loading": "제공업체를 불러오는 중…",
++    "load_failed": "제공업체 설정을 불러오지 못했습니다",
++    "reload": "다시 불러오기",
++    "no_destinations": "선택할 수 있는 제공업체가 없습니다",
++    "no_destinations_hint": "먼저 AI 제공업체 메뉴에서 고유하게 식별 가능한 OpenAI 호환 제공업체를 설정하세요.",
++    "destination": "대상 제공업체",
++    "choose_destination": "제공업체 선택",
++    "keys": "발급된 API 키",
++    "key_hint": "한 줄에 키 하나씩 최대 {{limit}}줄을 입력하세요. 계정이나 비밀번호는 입력하지 마세요. 제출하면 입력란이 비워지고 결과에는 줄 번호만 표시됩니다.",
++    "import": "제공업체에 가져오기",
++    "progress_title": "가져오기 진행 상황",
++    "completed": "{{done}} / {{total}}줄 처리됨",
++    "timeline": "단계 기록",
++    "rows": "줄별 가져오기 결과",
++    "line": "{{line}}번째 줄",
++    "stage": {
++      "idle": "제출 대기 중",
++      "validating": "입력 형식 확인 중",
++      "reading": "설정을 읽고 중복 확인 중",
++      "writing": "CPA 설정 저장 대기 중",
++      "finished": "처리 완료"
++    },
++    "row": {
++      "invalid": "잘못된 형식",
++      "duplicate": "일괄 항목 내 중복",
++      "already_present": "이미 있음, 변경 없음",
++      "pending": "저장 대기",
++      "added": "저장됨",
++      "not_written": "기록되지 않음",
++      "unknown": "저장 확인 안 됨"
++    },
++    "error": {
++      "empty": "키를 하나 이상 입력하세요.",
++      "batch_limit": "줄 수 또는 문자 수 제한을 초과했습니다. 여러 묶음으로 나누어 가져오세요.",
++      "config_unavailable": "현재 설정이나 버전 식별자를 읽지 못했습니다. 기록된 항목은 없습니다.",
++      "destination_changed": "대상이 변경되었거나 고유하지 않습니다. 목록을 다시 불러와 선택하세요.",
++      "proxy_mismatch": "기존 키의 프록시 설정이 서로 다릅니다. 제공업체 편집 화면에서 새 키의 프록시를 설정하세요.",
++      "conflict": "다른 작업이 설정을 변경했습니다. 기록되지 않았습니다. 다시 제출하기 전에 설정을 확인하세요.",
++      "write_rejected": "CPA가 쓰기를 거부했습니다. 대상 설정과 관리 권한을 확인하세요.",
++      "write_unconfirmed": "CPA가 저장을 확인하지 않았습니다. 다시 시도하기 전에 AI 제공업체 메뉴에서 키 존재 여부를 확인하세요."
++    }
++  },
+   "dashboard": {
+     "hero_verdict_good": "모든 시스템 정상",
+     "hero_verdict_warning": "다소 불안정",
+diff --git a/src/i18n/locales/ru.json b/src/i18n/locales/ru.json
+index 8fd381c9d752a6e6b7fa14ab4af46953ca73f3bc..a35fda1ddc6edb75e2e26fa7f6e09dc63af73b33 100644
+--- a/src/i18n/locales/ru.json
++++ b/src/i18n/locales/ru.json
+@@ -134,6 +134,54 @@
+     "config_management": "Базовая конфигурация шлюза",
+     "system_info": "Состояние и диагностика"
+   },
++  "provider_key_import": {
++    "nav": "Импорт ключей",
++    "nav_hint": "Пакетное добавление выданных ключей API",
++    "title": "Пакетный импорт ключей API",
++    "description": "Добавьте выданные ключи существующему провайдеру, совместимому с OpenAI. Текущие ключи и настройки моделей сохранятся.",
++    "input_title": "Настройки импорта",
++    "loading": "Чтение списка провайдеров…",
++    "load_failed": "Не удалось прочитать настройки провайдеров",
++    "reload": "Прочитать снова",
++    "no_destinations": "Нет подходящих провайдеров",
++    "no_destinations_hint": "Сначала настройте однозначно определяемого провайдера, совместимого с OpenAI, в разделе провайдеров ИИ.",
++    "destination": "Целевой провайдер",
++    "choose_destination": "Выберите провайдера",
++    "keys": "Выданные ключи API",
++    "key_hint": "Один ключ в строке, не более {{limit}} строк. Не вводите логины и пароли. После отправки поле очищается, а в результатах видны только номера строк.",
++    "import": "Импортировать ключи",
++    "progress_title": "Ход импорта",
++    "completed": "Обработано строк: {{done}} из {{total}}",
++    "timeline": "История этапов",
++    "rows": "Результаты по строкам",
++    "line": "Строка {{line}}",
++    "stage": {
++      "idle": "Ожидание отправки",
++      "validating": "Проверка формата",
++      "reading": "Чтение настроек и поиск дубликатов",
++      "writing": "Ожидание сохранения в CPA",
++      "finished": "Обработка завершена"
++    },
++    "row": {
++      "invalid": "Неверный формат",
++      "duplicate": "Дубликат в пакете",
++      "already_present": "Уже есть, без изменений",
++      "pending": "Ожидание сохранения",
++      "added": "Сохранено",
++      "not_written": "Не записано",
++      "unknown": "Сохранение не подтверждено"
++    },
++    "error": {
++      "empty": "Введите хотя бы один ключ.",
++      "batch_limit": "Превышен лимит строк или символов. Разделите пакет и повторите импорт.",
++      "config_unavailable": "Не удалось прочитать настройки или их версию. Запись не выполнена.",
++      "destination_changed": "Провайдер изменился или определяется неоднозначно. Обновите список и выберите его снова.",
++      "proxy_mismatch": "Существующие ключи используют разные прокси. Укажите прокси нового ключа в настройках провайдера.",
++      "conflict": "Настройки изменены другой операцией. Запись не выполнена. Проверьте настройки перед повторной отправкой.",
++      "write_rejected": "CPA отклонил запись. Проверьте настройки провайдера и права управления.",
++      "write_unconfirmed": "CPA не подтвердил сохранение. Перед повтором проверьте, появились ли ключи в разделе провайдеров ИИ."
++    }
++  },
+   "dashboard": {
+     "hero_verdict_good": "Всё стабильно",
+     "hero_verdict_warning": "Небольшие сбои",
+diff --git a/src/i18n/locales/tr.json b/src/i18n/locales/tr.json
+index 273d851a3a1343d95f08fcc7e5ef3958d6e659f5..46780bd6bd4c05e788b45daca50af4e10c777614 100644
+--- a/src/i18n/locales/tr.json
++++ b/src/i18n/locales/tr.json
+@@ -134,6 +134,54 @@
+     "config_management": "Ağ Geçidi Yapılandırması",
+     "system_info": "Çalışma Zamanı ve Tanılama"
+   },
++  "provider_key_import": {
++    "nav": "Anahtar içe aktarma",
++    "nav_hint": "Verilmiş API anahtarlarını toplu ekleyin",
++    "title": "API anahtarlarını toplu içe aktarma",
++    "description": "Verilmiş anahtarları mevcut bir OpenAI uyumlu sağlayıcıya ekleyin. Mevcut anahtarlar ve model ayarları korunur.",
++    "input_title": "İçe aktarma ayarları",
++    "loading": "Sağlayıcılar okunuyor…",
++    "load_failed": "Sağlayıcı yapılandırması okunamadı",
++    "reload": "Yeniden yükle",
++    "no_destinations": "Uygun sağlayıcı yok",
++    "no_destinations_hint": "Önce Yapay Zekâ Sağlayıcıları bölümünde benzersiz bir OpenAI uyumlu sağlayıcı yapılandırın.",
++    "destination": "Hedef sağlayıcı",
++    "choose_destination": "Sağlayıcı seçin",
++    "keys": "Verilmiş API anahtarları",
++    "key_hint": "Satır başına bir anahtar, en fazla {{limit}} satır. Hesap bilgisi veya parola girmeyin. Gönderince giriş temizlenir; sonuçlarda yalnızca satır numaraları gösterilir.",
++    "import": "Sağlayıcıya aktar",
++    "progress_title": "İçe aktarma ilerlemesi",
++    "completed": "{{done}} / {{total}} satır işlendi",
++    "timeline": "Aşama geçmişi",
++    "rows": "Satır bazında sonuçlar",
++    "line": "Satır {{line}}",
++    "stage": {
++      "idle": "Gönderim bekleniyor",
++      "validating": "Girdi biçimi doğrulanıyor",
++      "reading": "Yapılandırma okunuyor ve yinelenenler denetleniyor",
++      "writing": "CPA yapılandırma kaydı bekleniyor",
++      "finished": "İşleme tamamlandı"
++    },
++    "row": {
++      "invalid": "Geçersiz biçim",
++      "duplicate": "Toplu işlemde yinelenen",
++      "already_present": "Zaten var, değiştirilmedi",
++      "pending": "Kayıt bekleniyor",
++      "added": "Kaydedildi",
++      "not_written": "Yazılmadı",
++      "unknown": "Kayıt doğrulanmadı"
++    },
++    "error": {
++      "empty": "En az bir anahtar girin.",
++      "batch_limit": "Satır veya karakter sınırı aşıldı. Girdiyi bölüp yeniden deneyin.",
++      "config_unavailable": "Güncel yapılandırma veya sürüm tanımı okunamadı. Yazma yapılmadı.",
++      "destination_changed": "Hedef değişti veya birden fazla eşleşme var. Listeyi yenileyip hedefi tekrar seçin.",
++      "proxy_mismatch": "Mevcut anahtarlar farklı proxy ayarları kullanıyor. Yeni anahtarın proxy ayarını sağlayıcı düzenleyicisinde yapın.",
++      "conflict": "Yapılandırma başka bir işlemle güncellendi. Yazma yapılmadı. Tekrar göndermeden önce yapılandırmayı kontrol edin.",
++      "write_rejected": "CPA yazmayı reddetti. Hedef yapılandırmasını ve yönetim izinlerini kontrol edin.",
++      "write_unconfirmed": "CPA kaydı doğrulamadı. Yeniden denemeden önce Yapay Zekâ Sağlayıcıları bölümünde anahtarları kontrol edin."
++    }
++  },
+   "dashboard": {
+     "hero_verdict_good": "Tüm Sistemler Dengede",
+     "hero_verdict_warning": "Küçük Dalgalanma",
+diff --git a/src/i18n/locales/vi.json b/src/i18n/locales/vi.json
+index ecb555b72437f22522283bf4daa4fe9cca10c0aa..24d170dbb21cbd89eddf4161d5dacc0f8acbc417 100644
+--- a/src/i18n/locales/vi.json
++++ b/src/i18n/locales/vi.json
+@@ -134,6 +134,54 @@
+     "config_management": "Cấu hình gateway",
+     "system_info": "Runtime & chẩn đoán"
+   },
++  "provider_key_import": {
++    "nav": "Nhập khóa",
++    "nav_hint": "Thêm hàng loạt khóa API đã được cấp",
++    "title": "Nhập hàng loạt khóa API",
++    "description": "Thêm khóa đã được cấp vào nhà cung cấp tương thích OpenAI hiện có. Giữ nguyên khóa và cấu hình mô hình đang dùng.",
++    "input_title": "Cấu hình nhập",
++    "loading": "Đang đọc danh sách nhà cung cấp…",
++    "load_failed": "Không đọc được cấu hình nhà cung cấp",
++    "reload": "Tải lại",
++    "no_destinations": "Không có nhà cung cấp phù hợp",
++    "no_destinations_hint": "Trước tiên hãy thiết lập nhà cung cấp tương thích OpenAI có thể xác định duy nhất trong mục Nhà cung cấp AI.",
++    "destination": "Nhà cung cấp đích",
++    "choose_destination": "Chọn nhà cung cấp",
++    "keys": "Khóa API đã được cấp",
++    "key_hint": "Mỗi dòng một khóa, tối đa {{limit}} dòng. Không nhập tài khoản hoặc mật khẩu. Nội dung sẽ bị xóa khi gửi; kết quả chỉ hiện số dòng.",
++    "import": "Nhập vào nhà cung cấp",
++    "progress_title": "Tiến độ nhập",
++    "completed": "Đã xử lý {{done}} / {{total}} dòng",
++    "timeline": "Lịch sử các bước",
++    "rows": "Kết quả theo từng dòng",
++    "line": "Dòng {{line}}",
++    "stage": {
++      "idle": "Chờ gửi",
++      "validating": "Đang kiểm tra định dạng",
++      "reading": "Đang đọc cấu hình và kiểm tra trùng lặp",
++      "writing": "Đang chờ CPA lưu cấu hình",
++      "finished": "Đã xử lý xong"
++    },
++    "row": {
++      "invalid": "Định dạng không hợp lệ",
++      "duplicate": "Trùng trong lô",
++      "already_present": "Đã có, không thay đổi",
++      "pending": "Chờ lưu",
++      "added": "Đã lưu",
++      "not_written": "Chưa ghi",
++      "unknown": "Chưa xác nhận lưu"
++    },
++    "error": {
++      "empty": "Nhập ít nhất một khóa.",
++      "batch_limit": "Vượt giới hạn dòng hoặc ký tự. Hãy chia thành nhiều lô rồi thử lại.",
++      "config_unavailable": "Không đọc được cấu hình hiện tại hoặc mã phiên bản. Không có thay đổi nào được ghi.",
++      "destination_changed": "Đích đã thay đổi hoặc không còn duy nhất. Tải lại rồi chọn lại nhà cung cấp.",
++      "proxy_mismatch": "Các khóa hiện có dùng thiết lập proxy khác nhau. Hãy đặt proxy cho khóa mới ở trang sửa nhà cung cấp.",
++      "conflict": "Một thao tác khác đã cập nhật cấu hình. Không có thay đổi nào được ghi. Hãy kiểm tra cấu hình trước khi gửi lại.",
++      "write_rejected": "CPA từ chối ghi. Hãy kiểm tra cấu hình đích và quyền quản trị.",
++      "write_unconfirmed": "CPA chưa xác nhận lưu. Hãy kiểm tra trong mục Nhà cung cấp AI xem khóa đã tồn tại chưa trước khi thử lại."
++    }
++  },
+   "dashboard": {
+     "hero_verdict_good": "Mọi hệ thống ổn định",
+     "hero_verdict_warning": "Có chút trục trặc nhỏ",
+diff --git a/src/i18n/locales/zh-CN.json b/src/i18n/locales/zh-CN.json
+index c8f773f9f694ba43a101367747524bf03ffb683f..a4d621a0c5c352c69e8bcde9ff3b231b1f24731a 100644
+--- a/src/i18n/locales/zh-CN.json
++++ b/src/i18n/locales/zh-CN.json
+@@ -134,6 +134,54 @@
+     "config_management": "网关基础配置",
+     "system_info": "运行与诊断信息"
+   },
++  "provider_key_import": {
++    "nav": "密钥导入",
++    "nav_hint": "批量添加已签发的 API Key",
++    "title": "批量导入 API Key",
++    "description": "将已签发的密钥添加到一个现有的 OpenAI 兼容供应商，保留现有密钥和模型配置。",
++    "input_title": "导入设置",
++    "loading": "正在读取供应商…",
++    "load_failed": "未能读取供应商配置",
++    "reload": "重新读取",
++    "no_destinations": "没有可选供应商",
++    "no_destinations_hint": "请先在 AI 提供商中配置一个可唯一识别的 OpenAI 兼容供应商。",
++    "destination": "目标供应商",
++    "choose_destination": "选择供应商",
++    "keys": "已签发的 API Key",
++    "key_hint": "每行一个密钥，最多 {{limit}} 行。不接受账号或密码。提交后清空输入框，结果只显示行号。",
++    "import": "导入到供应商",
++    "progress_title": "导入进度",
++    "completed": "已处理 {{done}} / {{total}} 行",
++    "timeline": "阶段记录",
++    "rows": "逐行导入结果",
++    "line": "第 {{line}} 行",
++    "stage": {
++      "idle": "等待提交",
++      "validating": "校验输入格式",
++      "reading": "读取目标配置并去重",
++      "writing": "等待 CPA 保存配置",
++      "finished": "处理结束"
++    },
++    "row": {
++      "invalid": "格式无效",
++      "duplicate": "批次内重复",
++      "already_present": "已存在，未修改",
++      "pending": "等待保存",
++      "added": "已保存",
++      "not_written": "未写入",
++      "unknown": "保存结果待确认"
++    },
++    "error": {
++      "empty": "请输入至少一个密钥。",
++      "batch_limit": "超出批次行数或字符数限制，请拆分后再导入。",
++      "config_unavailable": "无法读取最新配置或获取版本标识，未写入。",
++      "destination_changed": "目标供应商已变化或无法唯一识别，请重新读取后再选择。",
++      "proxy_mismatch": "该供应商的现有密钥使用不同的代理配置。请在供应商编辑页明确设置新密钥的代理。",
++      "conflict": "配置已被其他操作更新。本次未写入，请核对配置后重新提交。",
++      "write_rejected": "CPA 拒绝了写入请求。请核对目标配置与管理权限。",
++      "write_unconfirmed": "未收到保存确认。请先在 AI 提供商中核对密钥是否已存在，再决定是否重试。"
++    }
++  },
+   "dashboard": {
+     "hero_verdict_good": "运行平稳",
+     "hero_verdict_warning": "有少量失败",
+diff --git a/src/i18n/locales/zh-TW.json b/src/i18n/locales/zh-TW.json
+index ad5ccab81efc67f6f79c68fa879819c4c653f0b8..a2742bc5652fe6be311c107a8074420692797492 100644
+--- a/src/i18n/locales/zh-TW.json
++++ b/src/i18n/locales/zh-TW.json
+@@ -134,6 +134,54 @@
+     "config_management": "閘道基礎設定",
+     "system_info": "運行與診斷資訊"
+   },
++  "provider_key_import": {
++    "nav": "匯入金鑰",
++    "nav_hint": "批次新增已簽發的 API 金鑰",
++    "title": "批次匯入 API 金鑰",
++    "description": "將已簽發的金鑰新增至現有的 OpenAI 相容供應商，保留現有金鑰與模型設定。",
++    "input_title": "匯入設定",
++    "loading": "正在讀取供應商…",
++    "load_failed": "無法讀取供應商設定",
++    "reload": "重新讀取",
++    "no_destinations": "沒有可選的供應商",
++    "no_destinations_hint": "請先在 AI 供應商中設定一個可唯一識別的 OpenAI 相容供應商。",
++    "destination": "目標供應商",
++    "choose_destination": "選擇供應商",
++    "keys": "已簽發的 API 金鑰",
++    "key_hint": "每行一個金鑰，最多 {{limit}} 行。請勿輸入帳號或密碼。送出後清空輸入欄位，結果只顯示行號。",
++    "import": "匯入至供應商",
++    "progress_title": "匯入進度",
++    "completed": "已處理 {{done}} / {{total}} 行",
++    "timeline": "階段紀錄",
++    "rows": "逐行匯入結果",
++    "line": "第 {{line}} 行",
++    "stage": {
++      "idle": "等待送出",
++      "validating": "驗證輸入格式",
++      "reading": "讀取設定並檢查重複項目",
++      "writing": "等待 CPA 儲存設定",
++      "finished": "處理完畢"
++    },
++    "row": {
++      "invalid": "格式無效",
++      "duplicate": "批次內重複",
++      "already_present": "已存在，未變更",
++      "pending": "等待儲存",
++      "added": "已儲存",
++      "not_written": "未寫入",
++      "unknown": "尚未確認儲存結果"
++    },
++    "error": {
++      "empty": "請輸入至少一個金鑰。",
++      "batch_limit": "超過行數或字元數上限，請分批匯入。",
++      "config_unavailable": "無法讀取最新設定或版本識別碼，未寫入。",
++      "destination_changed": "目標供應商已變更或無法唯一識別，請重新讀取並選擇。",
++      "proxy_mismatch": "現有金鑰使用不同的代理設定，請在供應商編輯頁設定新金鑰的代理。",
++      "conflict": "其他操作已更新設定，本次未寫入。請確認設定後再送出。",
++      "write_rejected": "CPA 拒絕寫入，請檢查目標設定與管理權限。",
++      "write_unconfirmed": "尚未收到儲存確認。請先在 AI 供應商中確認金鑰是否已存在，再決定是否重試。"
++    }
++  },
+   "dashboard": {
+     "hero_verdict_good": "運行平穩",
+     "hero_verdict_warning": "有少量失敗",
+diff --git a/src/router/MainRoutes.tsx b/src/router/MainRoutes.tsx
+index 4cb38e11b24ca00e188995d38f84e145e212154a..1274f80d010d7a86a39cfe64acf95dcfd31dd2ba 100644
+--- a/src/router/MainRoutes.tsx
++++ b/src/router/MainRoutes.tsx
+@@ -1,6 +1,7 @@
+ import { Navigate, useRoutes, type Location } from 'react-router-dom';
+ import { DashboardPage } from '@/features/dashboard/DashboardPage';
+ import { ProvidersWorkbenchPage } from '@/features/providers/ProvidersWorkbenchPage';
++import { ProviderKeyImportPage } from '@/features/providerKeyImport/ProviderKeyImportPage';
+ import { AuthFilesPage } from '@/features/authFiles/AuthFilesPage';
+ import { AuthFilesOAuthExcludedEditPage } from '@/pages/AuthFilesOAuthExcludedEditPage';
+ import { AuthFilesOAuthModelAliasEditPage } from '@/pages/AuthFilesOAuthModelAliasEditPage';
+@@ -24,6 +25,7 @@ const createMainRoutes = (supportsPlugin: boolean) => [
+   { path: '/quick-start/*', element: <Navigate to="/quick-start" replace /> },
+   { path: '/ai-providers', element: <ProvidersWorkbenchPage /> },
+   { path: '/ai-providers/*', element: <Navigate to="/ai-providers" replace /> },
++  { path: '/provider-key-import', element: <ProviderKeyImportPage /> },
+   { path: '/auth-files', element: <AuthFilesPage /> },
+   { path: '/auth-files/oauth-excluded', element: <AuthFilesOAuthExcludedEditPage /> },
+   { path: '/auth-files/oauth-model-alias', element: <AuthFilesOAuthModelAliasEditPage /> },
+diff --git a/src/services/api/providerKeyImport.ts b/src/services/api/providerKeyImport.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..cc171136ecfad086bf1e919b756d53a59ef77c3f
+--- /dev/null
++++ b/src/services/api/providerKeyImport.ts
+@@ -0,0 +1,44 @@
++import { isRecord } from '@/utils/helpers';
++import { apiClient } from './client';
++import { readProviderGroups } from './providers';
++
++const FAMILY = 'openai-compatibility';
++const PATH = `/config/api-keys/${FAMILY}`;
++
++export function createProviderKeyImportClient(isActive: () => boolean, signal: AbortSignal) {
++  const revision = apiClient.getConnectionRevision();
++  const isCurrent = () =>
++    !signal.aborted && isActive() && revision === apiClient.getConnectionRevision();
++  const client = apiClient.captureConnection(isCurrent);
++
++  return {
++    isCurrent,
++    async read() {
++      if (!isCurrent()) throw new Error('Connection changed');
++      try {
++        const response = await client.getRaw(PATH, { signal });
++        return {
++          groups: readProviderGroups({ 'api-keys': { [FAMILY]: response.data } }, FAMILY),
++          etag: typeof response.headers.etag === 'string' ? response.headers.etag : '',
++        };
++      } catch (error: unknown) {
++        if (
++          typeof error === 'object' &&
++          error !== null &&
++          'status' in error &&
++          error.status === 404
++        ) {
++          return { groups: [], etag: '' };
++        }
++        throw error;
++      }
++    },
++    async write(groups: Record<string, unknown>[], etag: string) {
++      if (!isCurrent()) throw new Error('Connection changed');
++      const result = await client.put(PATH, groups, { signal, headers: { 'If-Match': etag } });
++      if (!isRecord(result) || result.status !== 'ok' || result['config-version'] !== 8) {
++        throw new Error('Unconfirmed configuration write');
++      }
++    },
++  };
++}
+diff --git a/tests/providerKeyImport.test.ts b/tests/providerKeyImport.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..d566b02d49b2b31c8dd04f11509692a308e021bc
+--- /dev/null
++++ b/tests/providerKeyImport.test.ts
+@@ -0,0 +1,240 @@
++import { describe, expect, test } from 'bun:test';
++import {
++  findImportDestinations,
++  MAX_KEY_IMPORT_ROWS,
++  runProviderKeyImport,
++  type ImportUpdate,
++} from '@/features/providerKeyImport/batch';
++
++const etag = `"${'a'.repeat(64)}"`;
++const destination = { name: 'FreeAi', baseUrl: 'https://freeai.example.invalid/v1', prefix: '' };
++const oldKey = { 'api-key': 'test-existing-key', 'proxy-url': 'http://127.0.0.1:12345', weight: 3 };
++const provider = {
++  name: destination.name,
++  'base-url': destination.baseUrl,
++  models: [{ name: 'demo-model', alias: 'demo', 'display-name': 'Demo' }],
++  headers: { 'X-Test': 'keep' },
++  priority: 2,
++  keys: [oldKey],
++};
++const other = {
++  name: 'Separate provider',
++  'base-url': 'https://other.example.invalid/v1',
++  keys: [{ 'api-key': 'test-other-key', weight: 5 }],
++};
++
++function fixture(overrides?: Partial<Parameters<typeof runProviderKeyImport>[0]>) {
++  const writes: { groups: Record<string, unknown>[]; etag: string }[] = [];
++  const updates: ImportUpdate[] = [];
++  const client: Parameters<typeof runProviderKeyImport>[0] = {
++    read: async () => ({ groups: [provider, other], etag }),
++    write: async (groups, version) => {
++      writes.push({ groups, etag: version });
++    },
++    isCurrent: () => true,
++    ...overrides,
++  };
++  return {
++    writes,
++    updates,
++    run: (source: string) =>
++      runProviderKeyImport(client, destination, source, (update) => updates.push(update)),
++  };
++}
++
++const read =
++  (groups: Record<string, unknown>[], version = etag) =>
++  async () => ({ groups, etag: version });
++
++function deferred() {
++  let release!: () => void;
++  const promise = new Promise<void>((resolve) => {
++    release = resolve;
++  });
++  return { promise, release };
++}
++
++describe('provider key import', () => {
++  test('appends only valid new entries to the selected provider and keeps its existing configuration', async () => {
++    const { run, updates, writes } = fixture();
++    await run(
++      '\r\ntest-existing-key\r\nuser@example.invalid|test-password\r\n test-new-key \r\ntest-new-key\r\n'
++    );
++    expect(writes).toEqual([
++      {
++        etag,
++        groups: [
++          {
++            ...provider,
++            keys: [oldKey, { 'api-key': 'test-new-key', 'proxy-url': oldKey['proxy-url'] }],
++          },
++          other,
++        ],
++      },
++    ]);
++    expect(provider.keys).toEqual([oldKey]);
++    expect(updates.map(({ stage }) => stage)).toEqual([
++      'validating',
++      'reading',
++      'writing',
++      'finished',
++    ]);
++    expect(updates.at(-1)).toEqual({
++      stage: 'finished',
++      rows: [
++        { line: 2, status: 'already_present' },
++        { line: 3, status: 'invalid' },
++        { line: 4, status: 'added' },
++        { line: 5, status: 'duplicate' },
++      ],
++    });
++    expect(JSON.stringify(updates)).not.toMatch(/test-new-key|test-password|test-existing-key/);
++  });
++
++  test('shows writing progress before CPA acknowledges the save', async () => {
++    const entered = deferred();
++    const acknowledge = deferred();
++    const { run, updates } = fixture({
++      write: async () => {
++        entered.release();
++        await acknowledge.promise;
++      },
++    });
++    const operation = run('test-new-key');
++    await entered.promise;
++    expect(updates.at(-1)).toMatchObject({
++      stage: 'writing',
++      rows: [{ line: 1, status: 'pending' }],
++    });
++    acknowledge.release();
++    await operation;
++    expect(updates.at(-1)).toMatchObject({
++      stage: 'finished',
++      rows: [{ line: 1, status: 'added' }],
++    });
++  });
++
++  test('leaves configured routing alone for a provider without existing key-level overrides', async () => {
++    const { run, writes } = fixture({ read: read([{ ...provider, keys: [] }]) });
++    await run('test-new-key');
++    expect(writes[0]?.groups[0]?.keys).toEqual([{ 'api-key': 'test-new-key' }]);
++  });
++
++  test('does not write when all rows were duplicates or invalid', async () => {
++    const { run, updates, writes } = fixture();
++    await run('test-existing-key\ntest-existing-key\nAuthorization: Bearer fake');
++    expect(writes).toHaveLength(0);
++    expect(updates.at(-1)?.rows.map(({ status }) => status)).toEqual([
++      'already_present',
++      'duplicate',
++      'invalid',
++    ]);
++  });
++
++  test('bounds a batch before calling CPA', async () => {
++    const { run, updates } = fixture({
++      read: async () => {
++        throw new Error('Unexpected read');
++      },
++    });
++    await run(
++      Array.from({ length: MAX_KEY_IMPORT_ROWS + 1 }, (_, i) => `test-key-${i}`).join('\n')
++    );
++    expect(updates.map(({ stage }) => stage)).toEqual(['validating', 'finished']);
++    expect(updates.at(-1)?.error).toBe('batch_limit');
++  });
++
++  test('refuses missing ETags and stale or ambiguous targets', async () => {
++    const cases = [
++      { read: read([provider], ''), error: 'config_unavailable' },
++      { read: read([provider], `W/${etag}`), error: 'config_unavailable' },
++      { read: read([other]), error: 'destination_changed' },
++      { read: read([provider, { ...provider }]), error: 'destination_changed' },
++      {
++        read: read([
++          provider,
++          { ...provider, 'base-url': 'https://FREEAI.example.invalid:443/v1' },
++        ]),
++        error: 'destination_changed',
++      },
++    ];
++    for (const item of cases) {
++      const { run, updates, writes } = fixture({ read: item.read });
++      await run('test-new-key');
++      expect(writes).toHaveLength(0);
++      expect(updates.at(-1)).toMatchObject({
++        error: item.error,
++        rows: [{ status: 'not_written' }],
++      });
++    }
++  });
++
++  test('does not reserialize another provider when its number cannot round-trip safely', async () => {
++    const { run, updates, writes } = fixture({
++      read: read([provider, { ...other, priority: Number.MAX_SAFE_INTEGER + 1 }]),
++    });
++    await run('test-new-key');
++    expect(writes).toHaveLength(0);
++    expect(updates.at(-1)?.error).toBe('config_unavailable');
++  });
++
++  test('does not choose between mixed existing egress settings', async () => {
++    const { run, updates, writes } = fixture({
++      read: read([{ ...provider, keys: [oldKey, { 'api-key': 'test-second-key' }] }]),
++    });
++    await run('test-new-key');
++    expect(writes).toHaveLength(0);
++    expect(updates.at(-1)?.error).toBe('proxy_mismatch');
++  });
++
++  test('does not write or publish stale results after changing CPA connections', async () => {
++    const pending = deferred();
++    let current = true;
++    const { run, updates, writes } = fixture({
++      isCurrent: () => current,
++      read: async () => {
++        await pending.promise;
++        return { groups: [provider], etag };
++      },
++    });
++    const operation = run('test-new-key');
++    current = false;
++    pending.release();
++    await operation;
++    expect(writes).toHaveLength(0);
++    expect(updates.map(({ stage }) => stage)).toEqual(['validating', 'reading']);
++  });
++
++  test('distinguishes a conflict from rejected and unconfirmed writes, without retry or detail leakage', async () => {
++    const cases = [
++      { status: 412, error: 'conflict', row: 'not_written' },
++      { status: 422, error: 'write_rejected', row: 'not_written' },
++      { status: undefined, error: 'write_unconfirmed', row: 'unknown' },
++      { status: 503, error: 'write_unconfirmed', row: 'unknown' },
++    ];
++    for (const item of cases) {
++      let attempts = 0;
++      const { run, updates } = fixture({
++        write: async () => {
++          attempts += 1;
++          throw { status: item.status, data: 'test-secret-response' };
++        },
++      });
++      await run('test-new-key');
++      expect(attempts).toBe(1);
++      expect(updates.at(-1)).toMatchObject({ error: item.error, rows: [{ status: item.row }] });
++      expect(JSON.stringify(updates)).not.toContain('test-secret-response');
++    }
++  });
++
++  test('only lists distinct, valid endpoints and does not display URL credentials', () => {
++    const destinations = findImportDestinations([
++      provider,
++      { ...provider, 'base-url': 'https://user:secret@freeai.example.invalid/v1' },
++      { ...provider, 'base-url': 'https://freeai.example.invalid/v1?token=secret' },
++      other,
++      { ...other },
++    ]);
++    expect(destinations).toEqual([{ target: destination, endpoint: destination.baseUrl }]);
++  });
++});
