@@ -29,6 +29,15 @@ const classes = bindQuotaClasses(
 
 const WEEKLY_PERIOD_START = '2026-09-17T13:32:42.093205+00:00';
 const WEEKLY_PERIOD_END = '2026-09-24T13:32:42.093205+00:00';
+const usd = (amount: string) => {
+  const [integer, fraction] = amount.split('.');
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' })
+    .formatToParts(0)
+    .map((part) =>
+      part.type === 'integer' ? integer : part.type === 'fraction' ? fraction : part.value
+    )
+    .join('');
+};
 
 const weeklyConfig = (extra: XaiBillingConfig = {}): XaiBillingConfig => ({
   currentPeriod: {
@@ -207,8 +216,8 @@ describe('XaiQuotaBody unavailable weekly usage', () => {
     expect(markup).toContain(formatInstantShort(Date.parse(WEEKLY_PERIOD_END)));
     expect(markup).toContain('GrokChat usage');
     expect(markup).toContain('Prepaid');
-    expect(markup).toContain('$2.50');
-    expect(markup).toContain('$0.00 / $0.00');
+    expect(markup).toContain(usd('2.50'));
+    expect(markup).toContain(`${usd('0.00')} / ${usd('0.00')}`);
   });
 
   test('renders product contributions as text with only one shared weekly meter', () => {
@@ -265,8 +274,8 @@ describe('XaiQuotaBody unavailable weekly usage', () => {
       )
     );
     expect(markup).toContain('>90%<');
-    expect(markup).toContain('$135.00 / $150.00');
-    expect(markup).not.toContain('$15.00 / $150.00');
+    expect(markup).toContain(`${usd('135.00')} / ${usd('150.00')}`);
+    expect(markup).not.toContain(`${usd('15.00')} / ${usd('150.00')}`);
     expect(markup).toContain('width:90%');
   });
 

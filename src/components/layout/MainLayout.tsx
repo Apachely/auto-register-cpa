@@ -649,6 +649,12 @@ export function MainLayout() {
           icon: <IconUpload size={18} />,
         },
         {
+          path: '/registerbot',
+          labelKey: 'registerbot.nav',
+          metaKey: 'registerbot.nav_hint',
+          icon: sidebarIcons.oauth,
+        },
+        {
           path: '/auth-files',
           labelKey: 'nav.auth_files',
           metaKey: 'nav_meta.auth_files',
