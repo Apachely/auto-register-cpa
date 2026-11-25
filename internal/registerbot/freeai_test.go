@@ -155,3 +155,25 @@ func TestNavigationFailureNeverExposesArbitraryBrowserText(t *testing.T) {
 		t.Fatalf("unsafe error=%v", failure)
 	}
 }
+
+func TestFreeAIOnboardingRequiresAnswersCreditAndDiscordPreference(t *testing.T) {
+	for _, stage := range []string{"onboarding_profile", "onboarding_plans", "onboarding_discord", "onboarding_unknown"} {
+		t.Run(stage, func(t *testing.T) {
+			client := newFreeAITestCDP(t, func(request cdpMessage) map[string]any {
+				if request.Method == "Runtime.evaluate" {
+					return map[string]any{"result": map[string]any{"value": map[string]any{"url": "https://freeaiapikey.com/setup", "action": stage, "credit_confirmed": false}}}
+				}
+				if request.Method == "Input.dispatchMouseEvent" || request.Method == "Page.navigate" {
+					t.Error("required onboarding was bypassed")
+				}
+				return map[string]any{}
+			})
+			task := newFreeAITestTask(t)
+			task.session = &Session{client: client, sessionID: "session", targetID: "target", contextID: "context"}
+			_, errRun := NewFreeAIDriver(nil).Run(context.Background(), task)
+			if !errors.Is(errRun, ErrManualHandoff) || task.session == nil {
+				t.Fatal("incomplete onboarding did not retain manual handoff")
+			}
+		})
+	}
+}

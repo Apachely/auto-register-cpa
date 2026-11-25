@@ -527,6 +527,7 @@ func (e *Engine) worker(channelID string) {
 			e.tasks[row.View.ID] = task
 		}
 		task.Attempt = row.View.Attempt
+		task.Channel = channelCopy
 		task.onReport = func(stage string) { e.report(run, row, stage) }
 		harvest := row.Result
 		e.mu.Unlock()
@@ -699,8 +700,11 @@ func (e *Engine) report(run *queueRun, row *queueRow, stage string) {
 	if !row.busy || run.Status == "paused" || run.Status == "cancelled" {
 		return
 	}
+	if strings.HasPrefix(stage, "onboarding_") {
+		stage = StageOnboarding
+	}
 	switch stage {
-	case StageValidating, StagePinning, StageBrowserStart, StageGoogleLogin, StageWaitingHuman, StageCapturingKey, StageVerifyingKey, StageWritingKey:
+	case StageValidating, StagePinning, StageBrowserStart, StageGoogleLogin, StageOnboarding, StageWaitingHuman, StageCapturingKey, StageVerifyingKey, StageWritingKey:
 		row.View.Stage = stage
 	case "email", "password", "consent", "google", "speedbump":
 		row.View.Stage = StageGoogleLogin

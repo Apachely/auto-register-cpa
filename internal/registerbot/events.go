@@ -21,6 +21,7 @@ const (
 	StagePinning      = "pinning"
 	StageBrowserStart = "browser_start"
 	StageGoogleLogin  = "google_login"
+	StageOnboarding   = "onboarding"
 	StageWaitingHuman = "waiting_human"
 	StageCapturingKey = "capturing_key"
 	StageVerifyingKey = "verifying_key"

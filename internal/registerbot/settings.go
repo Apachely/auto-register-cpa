@@ -146,6 +146,10 @@ type ChannelSettings struct {
 	StartURL string `yaml:"start-url,omitempty" json:"start_url,omitempty"`
 	// ManualMode keeps the batch running without the gateway or a browser.
 	ManualMode bool `yaml:"manual-mode,omitempty" json:"manual_mode,omitempty"`
+	// Onboarding answers are operator-supplied facts, never inferred from an account.
+	OnboardingRole      string `yaml:"onboarding-role,omitempty" json:"onboarding_role,omitempty"`
+	OnboardingSource    string `yaml:"onboarding-source,omitempty" json:"onboarding_source,omitempty"`
+	SkipOptionalDiscord bool   `yaml:"skip-optional-discord,omitempty" json:"skip_optional_discord,omitempty"`
 }
 
 // Duration accessors keep the YAML surface as plain integers, as in CPA config.
@@ -502,6 +506,12 @@ func validateSettings(s *Settings) error {
 		if !KnownChannelKind(ch.Kind) {
 			return fmt.Errorf("registerbot: unknown channel kind %q", ch.Kind)
 		}
+		if ch.OnboardingRole != "" && !oneOf(ch.OnboardingRole, "student", "indie", "founder", "employee", "researcher", "exploring") {
+			return errors.New("registerbot: invalid onboarding role")
+		}
+		if ch.OnboardingSource != "" && !oneOf(ch.OnboardingSource, "google", "ai", "youtube", "instagram", "reddit", "x", "discord", "github", "friend", "other") {
+			return errors.New("registerbot: invalid onboarding source")
+		}
 	}
 	switch s.Gateway.ShareMode {
 	case ShareModeLease, ShareModePerChannel, ShareModeShared:
@@ -514,6 +524,15 @@ func validateSettings(s *Settings) error {
 		return fmt.Errorf("registerbot: unknown browser mode %q", s.Browser.Mode)
 	}
 	return nil
+}
+
+func oneOf(value string, candidates ...string) bool {
+	for _, candidate := range candidates {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 // writeLocked persists settings with an atomic replace. Caller holds st.mu.

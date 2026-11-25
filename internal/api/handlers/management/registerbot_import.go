@@ -21,13 +21,38 @@ import (
 const registerBotProviderPath = "/v8/management/config/api-keys/openai-compatibility"
 
 type registerBotProvider struct {
-	Name    string `json:"name"`
-	BaseURL string `json:"base-url"`
-	Prefix  string `json:"prefix"`
+	Name    string                  `json:"name"`
+	BaseURL string                  `json:"base-url"`
+	Prefix  string                  `json:"prefix"`
+	Models  []registerBotProbeModel `json:"models"`
 	Keys    []struct {
 		Key   string `json:"api-key"`
 		Proxy string `json:"proxy-url"`
 	} `json:"keys"`
+}
+
+type registerBotProbeModel struct {
+	Name                   string `json:"name"`
+	UseMaxCompletionTokens bool   `json:"use-max-completion-tokens"`
+}
+
+func registerBotVerificationModel(source []byte, channel registerbot.ChannelSettings) (registerBotProbeModel, error) {
+	var groups []registerBotProvider
+	if errDecode := json.Unmarshal(source, &groups); errDecode != nil {
+		return registerBotProbeModel{}, errors.New("registerbot: verification model configuration invalid")
+	}
+	for _, group := range groups {
+		if group.Name != channel.Provider {
+			continue
+		}
+		for _, model := range group.Models {
+			model.Name = strings.TrimSpace(model.Name)
+			if model.Name != "" {
+				return model, nil
+			}
+		}
+	}
+	return registerBotProbeModel{}, errors.New("registerbot: verification requires a configured provider model")
 }
 
 // This adapter uses the exact v8 GET/PUT contract used by providerKeyImport.ts.
@@ -101,7 +126,7 @@ func registerBotImportPlan(source []byte, channel registerbot.ChannelSettings, k
 			if existing.Proxy != channel.ProxyURL {
 				return nil, "", false, errors.New("registerbot: provider proxy mismatch")
 			}
-			return nil, base + "/models", true, nil
+			return nil, base + "/chat/completions", true, nil
 		}
 	}
 	doc := ojson.NewDoc(source)
@@ -114,7 +139,7 @@ func registerBotImportPlan(source []byte, channel registerbot.ChannelSettings, k
 	if errSet := doc.Set(path+".-1", map[string]string{"api-key": key, "proxy-url": channel.ProxyURL}); errSet != nil {
 		return nil, "", false, errors.New("registerbot: provider key append failed")
 	}
-	return doc.Bytes(), base + "/models", false, nil
+	return doc.Bytes(), base + "/chat/completions", false, nil
 }
 
 func validRegisterBotKey(key string) bool {
@@ -129,7 +154,10 @@ func validRegisterBotKey(key string) bool {
 	return true
 }
 
-func verifyRegisterBotKey(ctx context.Context, endpoint, proxy, key string) error {
+func verifyRegisterBotKey(ctx context.Context, endpoint, proxy, key string, model registerBotProbeModel) error {
+	if strings.TrimSpace(model.Name) == "" {
+		return errors.New("registerbot: verification model missing")
+	}
 	transport, _, errTransport := proxyutil.BuildHTTPTransport(proxy)
 	if errTransport != nil {
 		return errors.New("registerbot: key verification proxy invalid")
@@ -145,12 +173,31 @@ func verifyRegisterBotKey(ctx context.Context, endpoint, proxy, key string) erro
 	transport.ResponseHeaderTimeout = 0
 	transport.TLSHandshakeTimeout = 0
 	client := &http.Client{Transport: transport, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
-	req, errRequest := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	// The model catalog is public. Only an authenticated inference response proves
+	// that the copied key works. Match the panel's automatic per-key test request.
+	payload := struct {
+		Model               string              `json:"model"`
+		Messages            []map[string]string `json:"messages"`
+		Stream              bool                `json:"stream"`
+		MaxTokens           int                 `json:"max_tokens,omitempty"`
+		MaxCompletionTokens int                 `json:"max_completion_tokens,omitempty"`
+	}{Model: model.Name, Messages: []map[string]string{{"role": "user", "content": "Hi"}}}
+	if model.UseMaxCompletionTokens {
+		payload.MaxCompletionTokens = 5
+	} else {
+		payload.MaxTokens = 5
+	}
+	body, errMarshal := json.Marshal(payload)
+	if errMarshal != nil {
+		return errors.New("registerbot: verification request encoding failed")
+	}
+	req, errRequest := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if errRequest != nil {
 		return errors.New("registerbot: invalid verification endpoint")
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
 	response, errResponse := client.Do(req)
 	if errResponse != nil {
 		return errors.New("registerbot: key verification connection failed")
@@ -163,13 +210,16 @@ func verifyRegisterBotKey(ctx context.Context, endpoint, proxy, key string) erro
 	if errRead != nil || len(data) > 4*1024*1024 {
 		return errors.New("registerbot: key verification response invalid")
 	}
-	var models struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
+	var completion struct {
+		Choices []struct {
+			Message struct {
+				Role string `json:"role"`
+			} `json:"message"`
+		} `json:"choices"`
+		Error any `json:"error"`
 	}
-	if errDecode := json.Unmarshal(data, &models); errDecode != nil || len(models.Data) == 0 {
-		return errors.New("registerbot: key verification returned no models")
+	if errDecode := json.Unmarshal(data, &completion); errDecode != nil || completion.Error != nil || len(completion.Choices) == 0 || completion.Choices[0].Message.Role != "assistant" {
+		return errors.New("registerbot: key verification returned no assistant completion")
 	}
 	return nil
 }
@@ -209,11 +259,15 @@ func (h *Handler) importRegisterBotKey(ctx context.Context, channel registerbot.
 	if errPlan != nil {
 		return errPlan
 	}
+	model, errModel := registerBotVerificationModel(snapshot.body.Bytes(), channel)
+	if errModel != nil {
+		return errModel
+	}
 	verificationProxy := harvest.VerificationProxyURL
 	if verificationProxy == "" {
 		verificationProxy = "direct"
 	}
-	if errVerify := verifyRegisterBotKey(ctx, endpoint, verificationProxy, harvest.APIKey); errVerify != nil {
+	if errVerify := verifyRegisterBotKey(ctx, endpoint, verificationProxy, harvest.APIKey, model); errVerify != nil {
 		return errVerify
 	}
 	if present {

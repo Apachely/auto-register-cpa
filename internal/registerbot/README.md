@@ -56,6 +56,19 @@ by the evidence helper.
 
 ## Gateway and browser behavior
 
+FreeAI onboarding is mandatory before automatic key capture. The channel's
+`onboarding-role` and `onboarding-source` contain operator-supplied survey answers.
+The driver confirms the initial $5 credit, follows all five setup pages, and uses
+the existing plan. It skips the separate Discord reward only when
+`skip-optional-discord` is explicitly enabled; otherwise that step is handed to
+the operator. Missing answers or unconfirmed credit retain the page for manual
+completion. Updating channel answers takes effect when a retained task resumes.
+
+Dashboard key labels are truncated. Keys are read only from the full literal in
+the provider's `Copy key` action. The public model catalog is not an authentication
+check: importing requires a successful, bounded-output chat completion using the
+destination's first configured model, matching the panel's automatic key test.
+
 Gateway fallback is `controller -> proxy_only -> disabled`. Discovery tries an
 explicit controller first, then candidates derived from the forwarding port; the
 default proxy is `http://127.0.0.1:12450`, whose candidates include port `12440`.

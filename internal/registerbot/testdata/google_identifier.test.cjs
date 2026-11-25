@@ -33,6 +33,8 @@ function makeContext(elements, text, url) {
   const match = (element, selector) => {
     if (selector === '*') return true;
     if (selector.startsWith('#')) return element.id === selector.slice(1);
+    if (selector === 'button[title="Copy key"]') return element.tagName === 'BUTTON' && element.title === 'Copy key';
+    if (selector === 'a[href="/setup"]') return element.tagName === 'A' && element.href === '/setup';
     if (selector === '[data-cpa-target]') return element.getAttribute('data-cpa-target') !== '';
     const input = selector.match(/^input(?:\[(type|name)=["']?([^"'\]]+)["']?\])?$/);
     if (input) return element.tagName === 'INPUT' && (!input[1] || element[input[1]] === input[2]);
@@ -79,3 +81,32 @@ const failure = vm.runInContext(inspect, network);
 assert.equal(failure.action, 'network_error');
 assert.equal(failure.network_code, 'ERR_CONNECTION_RESET');
 console.log('Google identifier, visible password, Workspace consent, and network fixtures passed');
+
+const fullKey = 'sk-' + 'A'.repeat(43);
+const shortened = fullKey.slice(0, 28) + '…';
+const copy = Object.assign(field('copy-key', '', 'button'), {tagName:'BUTTON', title:'Copy key'});
+copy.setAttribute('onclick', "copyKey('" + fullKey + "')");
+const dashboard = makeContext([copy], 'API Keys\nDefault Key\n' + shortened, 'https://freeaiapikey.com/dashboard');
+assert.equal(vm.runInContext(inspect, dashboard).key, fullKey);
+const truncatedOnly = makeContext([], 'API Keys\n' + shortened, 'https://freeaiapikey.com/dashboard');
+assert.notEqual(vm.runInContext(inspect, truncatedOnly).action, 'key');
+copy.setAttribute('onclick', "copyKey('" + shortened + "')");
+assert.notEqual(vm.runInContext(inspect, dashboard).action, 'key');
+console.log('Full Copy key literal accepted; truncated display and copy values rejected');
+
+copy.setAttribute('onclick', "copyKey('" + fullKey + "')");
+const setupLink=Object.assign(field('setup-link','',''),{tagName:'A',href:'/setup'});
+const pendingSetup=makeContext([copy,setupLink],'Get $5 in free credit\nAPI Keys\n'+shortened,'https://freeaiapikey.com/dashboard');
+assert.equal(vm.runInContext(inspect,pendingSetup).action,'onboarding_entry');
+assert.equal(vm.runInContext(inspect,pendingSetup).key,'');
+const unpaid=makeContext([], 'Step 1 of 5\nYour balance +$5.00\nNormal $0.00 · Bonus $0.00','https://freeaiapikey.com/setup');
+assert.equal(vm.runInContext(inspect,unpaid).action,'onboarding_profile');
+assert.equal(vm.runInContext(inspect,unpaid).credit_confirmed,false);
+const paid=makeContext([], 'Step 1 of 5\nNormal $5.00 · Bonus $0.00\n$5.00 is in your balance.','https://freeaiapikey.com/setup');
+assert.equal(vm.runInContext(inspect,paid).action,'onboarding_credit');
+assert.equal(vm.runInContext(inspect,paid).credit_confirmed,true);
+for(const [step,action] of [[2,'onboarding_tool'],[3,'onboarding_test'],[4,'onboarding_discord'],[5,'onboarding_plans']]){
+ const current=makeContext([],`Step ${step} of 5\nNormal $5.00 · Bonus $0.00`,'https://freeaiapikey.com/setup');
+ assert.equal(vm.runInContext(inspect,current).action,action);
+}
+console.log('Required onboarding precedes key capture; promotional text is not credited balance');

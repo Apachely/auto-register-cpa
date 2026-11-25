@@ -44,11 +44,12 @@ func (d *FreeAIDriver) Probe(ctx context.Context) error {
 }
 
 type freeAIPage struct {
-	URL            string `json:"url"`
-	Action         string `json:"action"`
-	Key            string `json:"key"`
-	NetworkCode    string `json:"network_code"`
-	HumanChallenge bool   `json:"human_challenge"`
+	URL             string `json:"url"`
+	Action          string `json:"action"`
+	Key             string `json:"key"`
+	NetworkCode     string `json:"network_code"`
+	HumanChallenge  bool   `json:"human_challenge"`
+	CreditConfirmed bool   `json:"credit_confirmed"`
 }
 
 func normalizeFreeAIPage(page freeAIPage) freeAIPage {
@@ -119,6 +120,7 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 	lastAction := ""
 	lastProgress := time.Now()
 	acted := false
+	sawOnboarding, creditConfirmed := false, false
 	ticker := time.NewTicker(700 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -145,11 +147,22 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			page.Action = "loading"
 		}
 		page = normalizeFreeAIPage(page)
+		if strings.HasPrefix(page.Action, "onboarding_") {
+			sawOnboarding = true
+			creditConfirmed = creditConfirmed || page.CreditConfirmed
+		}
 		if page.Action != lastAction && page.Action != "loading" {
 			lastAction, lastProgress, acted = page.Action, time.Now(), false
 			task.Report(page.Action, "info", freeAIStageMessage(page.Action))
 		}
 		if page.Action == "key" && freeAIHost(page.URL) && keyPattern.MatchString(page.Key) {
+			if sawOnboarding {
+				if !creditConfirmed {
+					task.Report("onboarding_credit_pending", "warn", "onboarding credit was not confirmed; complete the guide before import")
+					return harvest, ErrManualHandoff
+				}
+				task.Report("onboarding_complete", "info", "onboarding completed and initial $5 credit confirmed")
+			}
 			return Harvest{APIKey: page.Key, Account: task.Account.Email, Node: task.node, ExitIP: task.exitIP, Browser: task.browserLabel(), StartedAt: started, FinishedAt: time.Now()}, nil
 		}
 		if page.Action == "invalid_credentials" {
@@ -167,6 +180,37 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 		if !acted && errInspect == nil {
 			var errAction error
 			switch page.Action {
+			case "onboarding_entry":
+				errAction = session.Navigate(acquireCtx, "https://freeaiapikey.com/setup")
+			case "onboarding_profile":
+				if task.Channel.OnboardingRole == "" || task.Channel.OnboardingSource == "" {
+					task.Report("onboarding_profile_required", "warn", "configure the channel onboarding answers or complete the survey in the retained browser")
+					return harvest, ErrManualHandoff
+				}
+				errAction = session.ClickSelector(acquireCtx, `label:has(input[name=role][value="`+task.Channel.OnboardingRole+`"])`)
+				if errAction == nil {
+					errAction = session.ClickSelector(acquireCtx, `label:has(input[name=source][value="`+task.Channel.OnboardingSource+`"])`)
+				}
+				if errAction == nil {
+					errAction = session.ClickText(acquireCtx, "Get my $5")
+				}
+			case "onboarding_credit", "onboarding_tool", "onboarding_test":
+				errAction = session.ClickText(acquireCtx, "Continue")
+			case "onboarding_discord":
+				if !task.Channel.SkipOptionalDiscord {
+					task.Report("onboarding_discord", "warn", "optional Discord step awaits the operator; enable its skip preference to continue without linking Discord")
+					return harvest, ErrManualHandoff
+				}
+				errAction = session.ClickText(acquireCtx, "Skip for now")
+			case "onboarding_plans":
+				if !creditConfirmed {
+					task.Report("onboarding_credit_pending", "warn", "initial $5 credit has not been confirmed; onboarding remains incomplete")
+					return harvest, ErrManualHandoff
+				}
+				errAction = session.ClickText(acquireCtx, "Open my dashboard")
+			case "onboarding_unknown":
+				task.Report("onboarding_unknown", "warn", "unrecognized onboarding step; continue in the retained browser")
+				return harvest, ErrManualHandoff
 			case "email":
 				if !googleIdentityHost(page.URL) {
 					return harvest, errors.New("registerbot: refusing credentials outside Google identity origin")
@@ -220,6 +264,20 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 
 func freeAIStageMessage(stage string) string {
 	switch stage {
+	case "onboarding_entry":
+		return "opening required onboarding"
+	case "onboarding_profile":
+		return "completing the configured onboarding survey"
+	case "onboarding_credit":
+		return "initial $5 onboarding credit confirmed"
+	case "onboarding_tool":
+		return "reviewing tool connection instructions"
+	case "onboarding_test":
+		return "reviewing API setup; authenticated inference is required before import"
+	case "onboarding_discord":
+		return "reviewing the optional additional Discord reward"
+	case "onboarding_plans":
+		return "finishing onboarding with the existing plan"
 	case "email":
 		return "entering Google account"
 	case "password":
@@ -254,7 +312,7 @@ const freeAIInspectScript = `(function(){
  var has=function(s){return Array.from(document.querySelectorAll(s)).some(visible);};
  var bodyText=document.body?document.body.innerText:'';
  var text=bodyText.toLowerCase();
- var host=location.hostname, path=location.pathname, action='loading', key='', networkCode='';
+ var host=location.hostname, path=location.pathname, action='loading', key='', networkCode='', creditConfirmed=false;
  var humanChallenge=has('iframe[src*="recaptcha"],input[name=totpPin],input[name=idvPin]')||text.includes('verify it’s you')||text.includes("verify it's you")||text.includes('2-step verification');
  var networkMatch=bodyText.match(/\bERR_[A-Z_]+\b/);
  var chromeError=location.protocol==='chrome-error:'||location.origin==='null'||has('#main-frame-error,.neterror');
@@ -271,14 +329,29 @@ const freeAIInspectScript = `(function(){
   else if(text.includes('choose an account')||text.includes('选择帐号')||text.includes('选择账号')){action='choose_account';}
   else if(Array.from(document.querySelectorAll('button,[role=button],input[type=submit]')).some(function(e){return visible(e)&&/^(continue|allow|i agree|next|继续|允许|我同意)$/i.test((e.innerText||e.value||'').trim());})){action='consent';}
  } else if(free){
-  if(path.startsWith('/dashboard')){
-   var content=(document.body?document.body.innerText:'')+'\n'+Array.from(document.querySelectorAll('input,textarea')).map(function(e){return e.value||'';}).join('\n');
-   var match=content.match(/sk-[A-Za-z0-9_-]{16,}/);
-   if(!match){var scripts=Array.from(document.scripts).map(function(e){return e.textContent||'';}).join('\n');var assigned=scripts.match(/keyValue\s*=\s*["'](sk-[A-Za-z0-9_-]{16,})["']/);if(assigned)match=assigned;}
-   if(match){key=match[1]||match[0];action='key';}
+  if(path==='/setup'||path.startsWith('/setup/')){
+   var step=(bodyText.match(/Step\s+([1-5])\s+of\s+5/i)||[])[1];
+   var normal=(bodyText.match(/Normal\s+\$([0-9,.]+)/i)||[])[1];
+   creditConfirmed=!!normal&&Number(normal.replace(/,/g,''))>=5;
+   if(step==='1'){action=text.includes('$5.00 is in your balance.')&&creditConfirmed?'onboarding_credit':'onboarding_profile';}
+   else if(step==='2'){action='onboarding_tool';}
+   else if(step==='3'){action='onboarding_test';}
+   else if(step==='4'){action='onboarding_discord';}
+   else if(step==='5'){action='onboarding_plans';}
+   else{action='onboarding_unknown';}
+  } else if(path.startsWith('/dashboard')&&has('a[href="/setup"]')){action='onboarding_entry';}
+  else if(path.startsWith('/dashboard')){
+   // Display text is truncated to 28 characters followed by an ellipsis. Only
+   // the complete literal passed to the provider's Copy key action is usable.
+   var copies=Array.from(document.querySelectorAll('button[title="Copy key"]')).filter(visible);
+   for(var i=0;i<copies.length;i++){
+    var copied=(copies[i].getAttribute('onclick')||'').match(/^\s*copyKey\(\s*(['"])(sk-[A-Za-z0-9_-]{16,509})\1\s*\)\s*;?\s*$/);
+    if(copied){key=copied[2];break;}
+   }
+   if(key){action='key';}
    else if(/show api key|show key|reveal|显示|查看密钥/.test(text)){action='reveal';}
   } else if(/continue with google|sign in with google|使用 google/.test(text)){action='google';}
   else if(path!=='/register'&&path!=='/login'){action='dashboard';}
  }
- return {url:location.href,action:action,key:key,network_code:networkCode,human_challenge:humanChallenge};
+ return {url:location.href,action:action,key:key,network_code:networkCode,human_challenge:humanChallenge,credit_confirmed:creditConfirmed};
 })()`
