@@ -1,0 +1,16 @@
+{
+  "replacedIndex": 5,
+  "oldLength": 28,
+  "newLength": 46,
+  "keyCount": 5,
+  "copiedValueMatches": true,
+  "hint": "sk-…A9b4",
+  "proxy": "http://127.0.0.1:12450",
+  "onboardingCompleted": true,
+  "initialCreditClaimed": 5,
+  "onboardingRole": "employee",
+  "onboardingSource": "google",
+  "skipOptionalDiscord": true,
+  "upstreamValidation": "stopped_by_user_after_shared_502",
+  "backendVersion": "8.1.2-registerbot-fix"
+}

@@ -1,6 +1,6 @@
-param([string]$Root = 'E:\LY\Tool\CPA')
+param([string]$Root = 'E:\LY\Tool\CPA', [string]$ArtifactDirectory = '')
 $ErrorActionPreference = 'Stop'
-$artifact = Join-Path $Root 'cpa-dev\artifacts-registerbot'
+$artifact = if ($ArtifactDirectory) { [IO.Path]::GetFullPath($ArtifactDirectory) } else { Join-Path $Root 'cpa-dev\artifacts-registerbot' }
 $backend = Join-Path $artifact 'cli-proxy-api.exe'
 $panel = Join-Path $Root 'cpa-dev\cpa-panel\dist\index.html'
 if (!(Test-Path -LiteralPath $panel)) { $panel = Join-Path $artifact 'management.html' }

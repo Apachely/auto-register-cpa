@@ -1,0 +1,34 @@
+[
+  {
+    "case": "models_no_key",
+    "http": 200,
+    "model": null,
+    "modelCount": 15,
+    "choices": 0,
+    "error": null
+  },
+  {
+    "case": "models_invalid_key",
+    "http": 200,
+    "model": null,
+    "modelCount": 15,
+    "choices": 0,
+    "error": null
+  },
+  {
+    "case": "chat_key5",
+    "http": 401,
+    "model": "anthropic/claude-opus-4.7",
+    "modelCount": 0,
+    "choices": 0,
+    "error": "Invalid API key"
+  },
+  {
+    "case": "chat_key1_control",
+    "http": 200,
+    "model": "anthropic/claude-opus-4.7",
+    "modelCount": 0,
+    "choices": 1,
+    "error": null
+  }
+]

@@ -1,0 +1,14 @@
+# FreeAi 第 5 个 key 修复
+
+根因：Dashboard 的可见 key 只有前 28 位加省略号，完整值位于 `Copy key` 按钮参数中，为 46 位。初版从可见文本提取导致 401；`/models` 不校验 key，导致初版验证误报。
+
+已修复：
+- 只提取复制动作中的完整 key，不从缩略展示文本中截取。
+- 使用与页面自动测试一致的首个配置模型、`POST /chat/completions`、5 个输出 token 验证；拒绝公开模型列表、错误体和没有 assistant completion 的响应。
+- 自动流程进入并完成 `/setup` 引导，确认基础 $5 已到账后再允许捕获和导入 key。
+- 渠道保存真实引导答案：公司开发者（employee）、Google 搜索（google）；用户明确选择跳过额外 Discord 奖励。基础 $5 领取步骤不会跳过，也不会选择付费套餐。
+- 第 5 个配置已用 If-Match 原位修正为完整复制值，数量仍为 5，提示为 `sk-…A9b4`，代理仍是 `http://127.0.0.1:12450`。
+
+验证：Go 注册机/管理处理器定点回归、Google/复制值/引导 DOM 夹具通过；面板注册机及七语种专项 17 项通过，前后端构建成功。按用户要求未重复全量测试，也已停止上游探测。对照期间完整 key 和原第 1 个 key 都返回上游 `502 Bad Gateway`，不将其计为推理通过。
+
+运行目录已部署本次 `cli-proxy-api.exe` 和 `management.html`。原 `artifacts-registerbot` 的初版 ZIP 保留为历史产物，已明确标记不可再次部署。
