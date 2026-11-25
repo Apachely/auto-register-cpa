@@ -15,6 +15,9 @@ export interface RegisterChannel {
   maxAttempts: number;
   startUrl: string;
   manualMode: boolean;
+  onboardingRole: string;
+  onboardingSource: string;
+  skipOptionalDiscord: boolean;
 }
 
 export interface RegisterCounters {

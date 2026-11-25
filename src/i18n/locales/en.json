@@ -2665,7 +2665,19 @@
       "partial": "Partially completed",
       "degraded": "Fallback active",
       "gateway": "Gateway",
-      "browser": "Browser"
+      "browser": "Browser",
+      "onboarding": "Onboarding",
+      "onboarding_entry": "Opening onboarding",
+      "onboarding_profile": "Completing profile",
+      "onboarding_credit": "Confirming $5 credit",
+      "onboarding_tool": "Tool setup guide",
+      "onboarding_test": "API test guide",
+      "onboarding_discord": "Optional Discord reward",
+      "onboarding_plans": "Finishing onboarding",
+      "onboarding_unknown": "Check onboarding manually",
+      "onboarding_profile_required": "Onboarding answers required",
+      "onboarding_credit_pending": "Waiting for initial credit",
+      "onboarding_complete": "Onboarding completed"
     },
     "reason": {
       "verify_or_write_failed": "Key verification or import failed. The captured key is retained for retry.",
@@ -2764,6 +2776,31 @@
       "lease": "Exclusive lease",
       "per_channel": "Per channel",
       "shared": "Shared selector"
+    },
+    "onboarding_role": "Onboarding identity",
+    "onboarding_source": "How you found the provider",
+    "onboarding_unset": "Not configured — wait for operator",
+    "onboarding_hint": "Answer truthfully. Complete onboarding and confirm the initial $5 credit before copying and testing the full key.",
+    "skip_optional_discord": "Skip the optional extra Discord reward (keeps the initial $5)",
+    "role": {
+      "student": "Student",
+      "indie": "Independent developer or freelancer",
+      "founder": "Founder or startup",
+      "employee": "Developer at a company",
+      "researcher": "Researcher",
+      "exploring": "Just exploring"
+    },
+    "source": {
+      "google": "Google search",
+      "ai": "ChatGPT or another AI",
+      "youtube": "YouTube",
+      "instagram": "Instagram",
+      "reddit": "Reddit",
+      "x": "X (Twitter)",
+      "discord": "Discord",
+      "github": "GitHub",
+      "friend": "A friend",
+      "other": "Somewhere else"
     }
   }
 }

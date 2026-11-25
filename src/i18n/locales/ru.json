@@ -2683,7 +2683,19 @@
       "partial": "Частично завершено",
       "degraded": "Резервный режим",
       "gateway": "Шлюз",
-      "browser": "Браузер"
+      "browser": "Браузер",
+      "onboarding": "Знакомство",
+      "onboarding_entry": "Открытие знакомства",
+      "onboarding_profile": "Заполнение профиля",
+      "onboarding_credit": "Подтверждение $5",
+      "onboarding_tool": "Настройка инструмента",
+      "onboarding_test": "Проверка API",
+      "onboarding_discord": "Дополнительная награда Discord",
+      "onboarding_plans": "Завершение знакомства",
+      "onboarding_unknown": "Проверьте шаг вручную",
+      "onboarding_profile_required": "Нужны ответы для знакомства",
+      "onboarding_credit_pending": "Ожидание начального кредита",
+      "onboarding_complete": "Знакомство завершено"
     },
     "reason": {
       "verify_or_write_failed": "Проверка или импорт не удались. Ключ сохранён для повтора.",
@@ -2782,6 +2794,31 @@
       "lease": "Эксклюзивная аренда",
       "per_channel": "По каналам",
       "shared": "Общий селектор"
+    },
+    "onboarding_role": "Роль для знакомства",
+    "onboarding_source": "Откуда вы узнали о сервисе",
+    "onboarding_unset": "Не настроено — ожидать оператора",
+    "onboarding_hint": "Укажите правдивые ответы. Завершите знакомство и подтвердите начальные $5 до копирования полного ключа и реального запроса.",
+    "skip_optional_discord": "Пропустить дополнительную награду Discord (начальные $5 сохраняются)",
+    "role": {
+      "student": "Студент",
+      "indie": "Независимый разработчик или фрилансер",
+      "founder": "Основатель или стартап",
+      "employee": "Разработчик в компании",
+      "researcher": "Исследователь",
+      "exploring": "Просто знакомлюсь"
+    },
+    "source": {
+      "google": "Поиск Google",
+      "ai": "ChatGPT или другой ИИ",
+      "youtube": "YouTube",
+      "instagram": "Instagram",
+      "reddit": "Reddit",
+      "x": "X (Twitter)",
+      "discord": "Discord",
+      "github": "GitHub",
+      "friend": "От друга",
+      "other": "Другой источник"
     }
   }
 }

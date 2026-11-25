@@ -2665,7 +2665,19 @@
       "partial": "부분 완료",
       "degraded": "대체 모드 활성",
       "gateway": "게이트웨이",
-      "browser": "브라우저"
+      "browser": "브라우저",
+      "onboarding": "온보딩",
+      "onboarding_entry": "온보딩 열기",
+      "onboarding_profile": "프로필 입력",
+      "onboarding_credit": "초기 $5 확인",
+      "onboarding_tool": "도구 설정 안내",
+      "onboarding_test": "API 테스트 안내",
+      "onboarding_discord": "추가 Discord 보상",
+      "onboarding_plans": "온보딩 마무리",
+      "onboarding_unknown": "온보딩 수동 확인",
+      "onboarding_profile_required": "온보딩 답변 필요",
+      "onboarding_credit_pending": "초기 크레딧 대기",
+      "onboarding_complete": "온보딩 완료"
     },
     "reason": {
       "verify_or_write_failed": "키 검증 또는 가져오기에 실패했습니다. 재시도할 수 있도록 키를 보관합니다.",
@@ -2764,6 +2776,31 @@
       "lease": "독점 임대",
       "per_channel": "채널별",
       "shared": "공유 선택기"
+    },
+    "onboarding_role": "온보딩 역할",
+    "onboarding_source": "서비스를 알게 된 경로",
+    "onboarding_unset": "미설정 — 운영자 대기",
+    "onboarding_hint": "실제 정보를 입력하세요. 온보딩과 초기 $5 지급을 확인한 후 전체 키를 복사하고 실제 요청으로 검증합니다.",
+    "skip_optional_discord": "추가 Discord 보상 건너뛰기 (초기 $5 유지)",
+    "role": {
+      "student": "학생",
+      "indie": "독립 개발자 또는 프리랜서",
+      "founder": "창업자 또는 스타트업",
+      "employee": "회사 개발자",
+      "researcher": "연구원",
+      "exploring": "둘러보는 중"
+    },
+    "source": {
+      "google": "Google 검색",
+      "ai": "ChatGPT 또는 다른 AI",
+      "youtube": "YouTube",
+      "instagram": "Instagram",
+      "reddit": "Reddit",
+      "x": "X (Twitter)",
+      "discord": "Discord",
+      "github": "GitHub",
+      "friend": "친구 소개",
+      "other": "기타 경로"
     }
   }
 }

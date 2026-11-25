@@ -2656,7 +2656,19 @@
       "partial": "部分完成",
       "degraded": "已降級",
       "gateway": "閘道",
-      "browser": "瀏覽器"
+      "browser": "瀏覽器",
+      "onboarding": "新手引導",
+      "onboarding_entry": "進入新手引導",
+      "onboarding_profile": "填寫引導資料",
+      "onboarding_credit": "確認 5 美元入帳",
+      "onboarding_tool": "工具設定說明",
+      "onboarding_test": "介面測試說明",
+      "onboarding_discord": "額外 Discord 獎勵",
+      "onboarding_plans": "完成引導",
+      "onboarding_unknown": "人工檢查引導",
+      "onboarding_profile_required": "需要設定引導答案",
+      "onboarding_credit_pending": "等待體驗金入帳",
+      "onboarding_complete": "引導已完成"
     },
     "reason": {
       "verify_or_write_failed": "金鑰驗證或寫入失敗，已保留金鑰供重試。",
@@ -2755,6 +2767,31 @@
       "lease": "獨占租約",
       "per_channel": "依渠道",
       "shared": "共用選擇器"
+    },
+    "onboarding_role": "引導身分",
+    "onboarding_source": "得知網站的來源",
+    "onboarding_unset": "尚未設定，遇到引導時等待人工",
+    "onboarding_hint": "請依實際情況填寫。完成引導並確認基本 5 美元入帳後，才複製完整 key 並執行實際呼叫驗證。",
+    "skip_optional_discord": "略過額外 Discord 獎勵（不影響基本 5 美元）",
+    "role": {
+      "student": "學生",
+      "indie": "獨立開發者或自由工作者",
+      "founder": "創業者或新創公司",
+      "employee": "公司開發者",
+      "researcher": "研究人員",
+      "exploring": "先了解看看"
+    },
+    "source": {
+      "google": "Google 搜尋",
+      "ai": "ChatGPT 或其他 AI",
+      "youtube": "YouTube",
+      "instagram": "Instagram",
+      "reddit": "Reddit",
+      "x": "X（Twitter）",
+      "discord": "Discord",
+      "github": "GitHub",
+      "friend": "朋友推薦",
+      "other": "其他來源"
     }
   }
 }

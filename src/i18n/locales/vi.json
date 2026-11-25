@@ -2665,7 +2665,19 @@
       "partial": "Hoàn tất một phần",
       "degraded": "Chế độ dự phòng",
       "gateway": "Cổng",
-      "browser": "Trình duyệt"
+      "browser": "Trình duyệt",
+      "onboarding": "Hướng dẫn ban đầu",
+      "onboarding_entry": "Mở hướng dẫn",
+      "onboarding_profile": "Điền thông tin",
+      "onboarding_credit": "Xác nhận $5",
+      "onboarding_tool": "Hướng dẫn công cụ",
+      "onboarding_test": "Hướng dẫn thử API",
+      "onboarding_discord": "Thưởng Discord bổ sung",
+      "onboarding_plans": "Hoàn tất hướng dẫn",
+      "onboarding_unknown": "Kiểm tra bước thủ công",
+      "onboarding_profile_required": "Cần câu trả lời thiết lập",
+      "onboarding_credit_pending": "Chờ tín dụng ban đầu",
+      "onboarding_complete": "Đã hoàn tất hướng dẫn"
     },
     "reason": {
       "verify_or_write_failed": "Kiểm tra hoặc nhập khóa thất bại. Khóa được giữ để thử lại.",
@@ -2764,6 +2776,31 @@
       "lease": "Khóa độc quyền",
       "per_channel": "Theo kênh",
       "shared": "Bộ chọn dùng chung"
+    },
+    "onboarding_role": "Vai trò khi thiết lập",
+    "onboarding_source": "Nguồn biết đến dịch vụ",
+    "onboarding_unset": "Chưa cấu hình — chờ người vận hành",
+    "onboarding_hint": "Điền thông tin đúng thực tế. Hoàn tất hướng dẫn và xác nhận $5 ban đầu trước khi sao chép khóa đầy đủ và gọi thử thực tế.",
+    "skip_optional_discord": "Bỏ qua thưởng Discord bổ sung (vẫn giữ $5 ban đầu)",
+    "role": {
+      "student": "Sinh viên",
+      "indie": "Lập trình viên độc lập hoặc tự do",
+      "founder": "Nhà sáng lập hoặc startup",
+      "employee": "Lập trình viên tại công ty",
+      "researcher": "Nhà nghiên cứu",
+      "exploring": "Đang tìm hiểu"
+    },
+    "source": {
+      "google": "Tìm kiếm Google",
+      "ai": "ChatGPT hoặc AI khác",
+      "youtube": "YouTube",
+      "instagram": "Instagram",
+      "reddit": "Reddit",
+      "x": "X (Twitter)",
+      "discord": "Discord",
+      "github": "GitHub",
+      "friend": "Bạn bè",
+      "other": "Nguồn khác"
     }
   }
 }

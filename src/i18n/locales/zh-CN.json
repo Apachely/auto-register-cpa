@@ -2656,7 +2656,19 @@
       "partial": "部分完成",
       "degraded": "已降级",
       "gateway": "网关",
-      "browser": "浏览器"
+      "browser": "浏览器",
+      "onboarding": "新手引导",
+      "onboarding_entry": "进入新手引导",
+      "onboarding_profile": "填写引导资料",
+      "onboarding_credit": "确认 5 美元到账",
+      "onboarding_tool": "工具配置说明",
+      "onboarding_test": "接口测试说明",
+      "onboarding_discord": "额外 Discord 奖励",
+      "onboarding_plans": "完成引导",
+      "onboarding_unknown": "人工检查引导",
+      "onboarding_profile_required": "需要配置引导答案",
+      "onboarding_credit_pending": "等待体验金到账",
+      "onboarding_complete": "引导已完成"
     },
     "reason": {
       "verify_or_write_failed": "密钥校验或写入失败，已保留密钥供重试。",
@@ -2755,6 +2767,31 @@
       "lease": "独占租约",
       "per_channel": "按渠道",
       "shared": "共享选择器"
+    },
+    "onboarding_role": "引导身份",
+    "onboarding_source": "了解网站的来源",
+    "onboarding_unset": "未配置，遇到引导时等待人工",
+    "onboarding_hint": "请按实际情况填写。完成引导并确认基础 5 美元到账后，才复制完整 key 并进行真实调用验证。",
+    "skip_optional_discord": "跳过额外 Discord 奖励（不影响基础 5 美元）",
+    "role": {
+      "student": "学生",
+      "indie": "独立开发者或自由职业者",
+      "founder": "创业者或初创公司",
+      "employee": "公司开发者",
+      "researcher": "研究人员",
+      "exploring": "先了解一下"
+    },
+    "source": {
+      "google": "谷歌搜索",
+      "ai": "ChatGPT 或其他 AI",
+      "youtube": "YouTube",
+      "instagram": "Instagram",
+      "reddit": "Reddit",
+      "x": "X（Twitter）",
+      "discord": "Discord",
+      "github": "GitHub",
+      "friend": "朋友推荐",
+      "other": "其他来源"
     }
   }
 }

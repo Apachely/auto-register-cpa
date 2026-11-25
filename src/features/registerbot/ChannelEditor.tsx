@@ -31,6 +31,45 @@ export function ChannelEditor({ channel, gateway, busy, onSave, onClose }: Props
   return (
     <form className={styles.editor} onSubmit={(event) => void submit(event)}>
       <div className={styles.fields}>
+        <div className="form-group">
+          <label htmlFor={`${id}-onboarding-role`}>{t('registerbot.onboarding_role')}</label>
+          <Select
+            id={`${id}-onboarding-role`}
+            value={draft.onboardingRole}
+            options={[
+              { value: '', label: t('registerbot.onboarding_unset') },
+              ...['student', 'indie', 'founder', 'employee', 'researcher', 'exploring'].map(
+                (value) => ({ value, label: t(`registerbot.role.${value}`) })
+              ),
+            ]}
+            disabled={busy}
+            onChange={(value) => setDraft({ ...draft, onboardingRole: value })}
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor={`${id}-onboarding-source`}>{t('registerbot.onboarding_source')}</label>
+          <Select
+            id={`${id}-onboarding-source`}
+            value={draft.onboardingSource}
+            options={[
+              { value: '', label: t('registerbot.onboarding_unset') },
+              ...[
+                'google',
+                'ai',
+                'youtube',
+                'instagram',
+                'reddit',
+                'x',
+                'discord',
+                'github',
+                'friend',
+                'other',
+              ].map((value) => ({ value, label: t(`registerbot.source.${value}`) })),
+            ]}
+            disabled={busy}
+            onChange={(value) => setDraft({ ...draft, onboardingSource: value })}
+          />
+        </div>
         {(['id', 'name', 'provider'] as const).map((field) => (
           <div className="form-group" key={field}>
             <label htmlFor={`${id}-${field}`}>{t(`registerbot.channel_${field}`)}</label>
@@ -101,7 +140,17 @@ export function ChannelEditor({ channel, gateway, busy, onSave, onClose }: Props
           </div>
         ))}
       </div>
+      <p className={styles.hint}>{t('registerbot.onboarding_hint')}</p>
       <div className={styles.actions}>
+        <label className={styles.check}>
+          <input
+            type="checkbox"
+            checked={draft.skipOptionalDiscord}
+            disabled={busy}
+            onChange={(event) => setDraft({ ...draft, skipOptionalDiscord: event.target.checked })}
+          />
+          {t('registerbot.skip_optional_discord')}
+        </label>
         <label className={styles.check}>
           <input
             type="checkbox"

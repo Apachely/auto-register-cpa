@@ -39,6 +39,9 @@ export function readRegisterChannel(value: unknown): RegisterChannel {
     maxAttempts: number(item.max_attempts),
     startUrl: text(item.start_url),
     manualMode: item.manual_mode === true,
+    onboardingRole: text(item.onboarding_role),
+    onboardingSource: text(item.onboarding_source),
+    skipOptionalDiscord: item.skip_optional_discord === true,
   };
 }
 
@@ -60,6 +63,9 @@ function writeChannel(item: RegisterChannel) {
     max_attempts: item.maxAttempts,
     start_url: item.startUrl,
     manual_mode: item.manualMode,
+    onboarding_role: item.onboardingRole,
+    onboarding_source: item.onboardingSource,
+    skip_optional_discord: item.skipOptionalDiscord,
   };
 }
 

@@ -2665,7 +2665,19 @@
       "partial": "Kısmen tamamlandı",
       "degraded": "Yedek mod etkin",
       "gateway": "Ağ geçidi",
-      "browser": "Tarayıcı"
+      "browser": "Tarayıcı",
+      "onboarding": "Başlangıç adımları",
+      "onboarding_entry": "Başlangıcı açma",
+      "onboarding_profile": "Profil doldurma",
+      "onboarding_credit": "$5 krediyi doğrulama",
+      "onboarding_tool": "Araç kurulum rehberi",
+      "onboarding_test": "API test rehberi",
+      "onboarding_discord": "Ek Discord ödülü",
+      "onboarding_plans": "Başlangıcı tamamlama",
+      "onboarding_unknown": "Adımı elle kontrol et",
+      "onboarding_profile_required": "Başlangıç yanıtları gerekli",
+      "onboarding_credit_pending": "İlk krediyi bekleme",
+      "onboarding_complete": "Başlangıç tamamlandı"
     },
     "reason": {
       "verify_or_write_failed": "Anahtar doğrulaması veya aktarımı başarısız. Anahtar yeniden denemek için saklandı.",
@@ -2764,6 +2776,31 @@
       "lease": "Özel kiralama",
       "per_channel": "Kanal başına",
       "shared": "Ortak seçici"
+    },
+    "onboarding_role": "Başlangıç rolü",
+    "onboarding_source": "Hizmeti keşfetme kaynağı",
+    "onboarding_unset": "Yapılandırılmadı — operatörü bekle",
+    "onboarding_hint": "Gerçek bilgileri girin. Tam anahtarı kopyalayıp gerçek istekle doğrulamadan önce başlangıç adımlarını ve ilk $5 krediyi doğrulayın.",
+    "skip_optional_discord": "Ek Discord ödülünü atla (ilk $5 korunur)",
+    "role": {
+      "student": "Öğrenci",
+      "indie": "Bağımsız geliştirici veya serbest çalışan",
+      "founder": "Kurucu veya girişim",
+      "employee": "Şirkette geliştirici",
+      "researcher": "Araştırmacı",
+      "exploring": "Sadece keşfediyorum"
+    },
+    "source": {
+      "google": "Google araması",
+      "ai": "ChatGPT veya başka bir yapay zekâ",
+      "youtube": "YouTube",
+      "instagram": "Instagram",
+      "reddit": "Reddit",
+      "x": "X (Twitter)",
+      "discord": "Discord",
+      "github": "GitHub",
+      "friend": "Bir arkadaş",
+      "other": "Başka bir kaynak"
     }
   }
 }
