@@ -134,6 +134,56 @@
     "config_management": "게이트웨이 설정",
     "system_info": "런타임 및 진단"
   },
+  "provider_key_import": {
+    "nav": "키 가져오기",
+    "nav_hint": "발급된 API 키 일괄 추가",
+    "title": "API 키 일괄 가져오기",
+    "description": "발급된 키를 기존 OpenAI 호환 제공업체에 추가합니다. 기존 키와 모델 설정은 유지됩니다.",
+    "input_title": "가져오기 설정",
+    "loading": "제공업체를 불러오는 중…",
+    "load_failed": "제공업체 설정을 불러오지 못했습니다",
+    "reload": "다시 불러오기",
+    "no_destinations": "선택할 수 있는 제공업체가 없습니다",
+    "no_destinations_hint": "먼저 AI 제공업체 메뉴에서 고유하게 식별 가능한 OpenAI 호환 제공업체를 설정하세요.",
+    "destination": "대상 제공업체",
+    "choose_destination": "제공업체 선택",
+    "keys": "발급된 API 키",
+    "key_hint": "한 줄에 키 하나씩 최대 {{limit}}줄을 입력하세요. 계정이나 비밀번호는 입력하지 마세요. 제출하면 입력란이 비워지고 결과에는 줄 번호만 표시됩니다.",
+    "import": "제공업체에 가져오기",
+    "progress_title": "가져오기 진행 상황",
+    "completed": "{{done}} / {{total}}줄 처리됨",
+    "timeline": "단계 기록",
+    "rows": "줄별 가져오기 결과",
+    "line": "{{line}}번째 줄",
+    "stage": {
+      "idle": "제출 대기 중",
+      "validating": "입력 형식 확인 중",
+      "reading": "설정을 읽고 중복 확인 중",
+      "writing": "CPA 설정 저장 대기 중",
+      "verifying": "저장 응답이 없어 설정을 다시 확인하는 중",
+      "finished": "처리 완료"
+    },
+    "row": {
+      "invalid": "잘못된 형식",
+      "duplicate": "일괄 항목 내 중복",
+      "already_present": "이미 있음, 변경 없음",
+      "pending": "처리 중",
+      "added": "저장됨",
+      "confirmed_present": "키가 있는 것으로 확인됨",
+      "not_written": "기록되지 않음",
+      "unknown": "저장 확인 안 됨"
+    },
+    "error": {
+      "empty": "키를 하나 이상 입력하세요.",
+      "batch_limit": "줄 수 또는 문자 수 제한을 초과했습니다. 여러 묶음으로 나누어 가져오세요.",
+      "config_unavailable": "현재 설정이나 버전 식별자를 읽지 못했습니다. 기록된 항목은 없습니다.",
+      "destination_changed": "대상이 변경되었거나 고유하지 않습니다. 목록을 다시 불러와 선택하세요.",
+      "proxy_mismatch": "기존 키의 프록시 설정이 서로 다릅니다. 제공업체 편집 화면에서 새 키의 프록시를 설정하세요.",
+      "conflict": "다른 작업이 설정을 변경했습니다. 기록되지 않았습니다. 다시 제출하기 전에 설정을 확인하세요.",
+      "write_rejected": "CPA가 쓰기를 거부했습니다. 대상 설정과 관리 권한을 확인하세요.",
+      "write_unconfirmed": "CPA가 저장을 확인하지 않았습니다. 다시 시도하기 전에 AI 제공업체 메뉴에서 키 존재 여부를 확인하세요."
+    }
+  },
   "dashboard": {
     "hero_verdict_good": "모든 시스템 정상",
     "hero_verdict_warning": "다소 불안정",

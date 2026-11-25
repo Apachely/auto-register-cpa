@@ -134,6 +134,56 @@
     "config_management": "閘道基礎設定",
     "system_info": "運行與診斷資訊"
   },
+  "provider_key_import": {
+    "nav": "匯入金鑰",
+    "nav_hint": "批次新增已簽發的 API 金鑰",
+    "title": "批次匯入 API 金鑰",
+    "description": "將已簽發的金鑰新增至現有的 OpenAI 相容供應商，保留現有金鑰與模型設定。",
+    "input_title": "匯入設定",
+    "loading": "正在讀取供應商…",
+    "load_failed": "無法讀取供應商設定",
+    "reload": "重新讀取",
+    "no_destinations": "沒有可選的供應商",
+    "no_destinations_hint": "請先在 AI 供應商中設定一個可唯一識別的 OpenAI 相容供應商。",
+    "destination": "目標供應商",
+    "choose_destination": "選擇供應商",
+    "keys": "已簽發的 API 金鑰",
+    "key_hint": "每行一個金鑰，最多 {{limit}} 行。請勿輸入帳號或密碼。送出後清空輸入欄位，結果只顯示行號。",
+    "import": "匯入至供應商",
+    "progress_title": "匯入進度",
+    "completed": "已處理 {{done}} / {{total}} 行",
+    "timeline": "階段紀錄",
+    "rows": "逐行匯入結果",
+    "line": "第 {{line}} 行",
+    "stage": {
+      "idle": "等待送出",
+      "validating": "驗證輸入格式",
+      "reading": "讀取設定並檢查重複項目",
+      "writing": "等待 CPA 儲存設定",
+      "verifying": "未收到儲存確認，正在回查設定",
+      "finished": "處理完畢"
+    },
+    "row": {
+      "invalid": "格式無效",
+      "duplicate": "批次內重複",
+      "already_present": "已存在，未變更",
+      "pending": "處理中",
+      "added": "已儲存",
+      "confirmed_present": "已回查：金鑰存在",
+      "not_written": "未寫入",
+      "unknown": "尚未確認儲存結果"
+    },
+    "error": {
+      "empty": "請輸入至少一個金鑰。",
+      "batch_limit": "超過行數或字元數上限，請分批匯入。",
+      "config_unavailable": "無法讀取最新設定或版本識別碼，未寫入。",
+      "destination_changed": "目標供應商已變更或無法唯一識別，請重新讀取並選擇。",
+      "proxy_mismatch": "現有金鑰使用不同的代理設定，請在供應商編輯頁設定新金鑰的代理。",
+      "conflict": "其他操作已更新設定，本次未寫入。請確認設定後再送出。",
+      "write_rejected": "CPA 拒絕寫入，請檢查目標設定與管理權限。",
+      "write_unconfirmed": "尚未收到儲存確認。請先在 AI 供應商中確認金鑰是否已存在，再決定是否重試。"
+    }
+  },
   "dashboard": {
     "hero_verdict_good": "運行平穩",
     "hero_verdict_warning": "有少量失敗",

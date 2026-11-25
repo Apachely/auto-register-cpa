@@ -1,0 +1,131 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-lg;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-md;
+  color: var(--text-primary);
+
+  svg {
+    flex: none;
+    margin-top: $spacing-xs;
+    color: var(--text-secondary);
+  }
+
+  h1 {
+    font-size: clamp(20px, 3vw, 26px);
+    font-weight: 700;
+  }
+
+  p {
+    margin-top: $spacing-xs;
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: $spacing-md;
+
+  @media (max-width: $breakpoint-tablet) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.card {
+  min-width: 0;
+}
+
+.keys {
+  resize: vertical;
+  font-family: $font-mono;
+  font-size: 13px;
+}
+
+.hint {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.stage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.progress {
+  display: block;
+  width: 100%;
+  height: 8px;
+  margin: $spacing-md 0;
+  accent-color: var(--primary-color);
+}
+
+.timeline,
+.rows {
+  &:not(:empty) {
+    margin-top: $spacing-md;
+    border-top: 0.5px solid var(--border-color);
+  }
+
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $spacing-sm;
+    padding: $spacing-sm 0;
+    border-bottom: 0.5px solid var(--border-color);
+    font-size: 13px;
+  }
+}
+
+.timeline {
+  color: var(--text-secondary);
+
+  time {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.rows {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.result {
+  padding: 2px 8px;
+  border: 0.5px solid var(--border-color);
+  border-radius: $radius-full;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 12px;
+
+  &[data-status='added'],
+  &[data-status='confirmed_present'] {
+    background: var(--success-badge-bg);
+    color: var(--success-badge-text);
+    border-color: var(--success-badge-border);
+  }
+
+  &[data-status='invalid'],
+  &[data-status='not_written'] {
+    background: var(--failure-badge-bg);
+    color: var(--failure-badge-text);
+    border-color: var(--failure-badge-border);
+  }
+
+  &[data-status='unknown'] {
+    background: var(--amber-10);
+    color: var(--amber-text);
+    border-color: var(--amber-30);
+  }
+}

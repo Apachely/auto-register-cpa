@@ -134,6 +134,56 @@
     "config_management": "网关基础配置",
     "system_info": "运行与诊断信息"
   },
+  "provider_key_import": {
+    "nav": "密钥导入",
+    "nav_hint": "批量添加已签发的 API Key",
+    "title": "批量导入 API Key",
+    "description": "将已签发的密钥添加到一个现有的 OpenAI 兼容供应商，保留现有密钥和模型配置。",
+    "input_title": "导入设置",
+    "loading": "正在读取供应商…",
+    "load_failed": "未能读取供应商配置",
+    "reload": "重新读取",
+    "no_destinations": "没有可选供应商",
+    "no_destinations_hint": "请先在 AI 提供商中配置一个可唯一识别的 OpenAI 兼容供应商。",
+    "destination": "目标供应商",
+    "choose_destination": "选择供应商",
+    "keys": "已签发的 API Key",
+    "key_hint": "每行一个密钥，最多 {{limit}} 行。不接受账号或密码。提交后清空输入框，结果只显示行号。",
+    "import": "导入到供应商",
+    "progress_title": "导入进度",
+    "completed": "已处理 {{done}} / {{total}} 行",
+    "timeline": "阶段记录",
+    "rows": "逐行导入结果",
+    "line": "第 {{line}} 行",
+    "stage": {
+      "idle": "等待提交",
+      "validating": "校验输入格式",
+      "reading": "读取目标配置并去重",
+      "writing": "等待 CPA 保存配置",
+      "verifying": "未收到保存确认，正在回查配置",
+      "finished": "处理结束"
+    },
+    "row": {
+      "invalid": "格式无效",
+      "duplicate": "批次内重复",
+      "already_present": "已存在，未修改",
+      "pending": "处理中",
+      "added": "已保存",
+      "confirmed_present": "已回查：密钥存在",
+      "not_written": "未写入",
+      "unknown": "保存结果待确认"
+    },
+    "error": {
+      "empty": "请输入至少一个密钥。",
+      "batch_limit": "超出批次行数或字符数限制，请拆分后再导入。",
+      "config_unavailable": "无法读取最新配置或获取版本标识，未写入。",
+      "destination_changed": "目标供应商已变化或无法唯一识别，请重新读取后再选择。",
+      "proxy_mismatch": "该供应商的现有密钥使用不同的代理配置。请在供应商编辑页明确设置新密钥的代理。",
+      "conflict": "配置已被其他操作更新。本次未写入，请核对配置后重新提交。",
+      "write_rejected": "CPA 拒绝了写入请求。请核对目标配置与管理权限。",
+      "write_unconfirmed": "未收到保存确认。请先在 AI 提供商中核对密钥是否已存在，再决定是否重试。"
+    }
+  },
   "dashboard": {
     "hero_verdict_good": "运行平稳",
     "hero_verdict_warning": "有少量失败",

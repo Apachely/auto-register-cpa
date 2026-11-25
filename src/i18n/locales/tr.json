@@ -134,6 +134,56 @@
     "config_management": "Ağ Geçidi Yapılandırması",
     "system_info": "Çalışma Zamanı ve Tanılama"
   },
+  "provider_key_import": {
+    "nav": "Anahtar içe aktarma",
+    "nav_hint": "Verilmiş API anahtarlarını toplu ekleyin",
+    "title": "API anahtarlarını toplu içe aktarma",
+    "description": "Verilmiş anahtarları mevcut bir OpenAI uyumlu sağlayıcıya ekleyin. Mevcut anahtarlar ve model ayarları korunur.",
+    "input_title": "İçe aktarma ayarları",
+    "loading": "Sağlayıcılar okunuyor…",
+    "load_failed": "Sağlayıcı yapılandırması okunamadı",
+    "reload": "Yeniden yükle",
+    "no_destinations": "Uygun sağlayıcı yok",
+    "no_destinations_hint": "Önce Yapay Zekâ Sağlayıcıları bölümünde benzersiz bir OpenAI uyumlu sağlayıcı yapılandırın.",
+    "destination": "Hedef sağlayıcı",
+    "choose_destination": "Sağlayıcı seçin",
+    "keys": "Verilmiş API anahtarları",
+    "key_hint": "Satır başına bir anahtar, en fazla {{limit}} satır. Hesap bilgisi veya parola girmeyin. Gönderince giriş temizlenir; sonuçlarda yalnızca satır numaraları gösterilir.",
+    "import": "Sağlayıcıya aktar",
+    "progress_title": "İçe aktarma ilerlemesi",
+    "completed": "{{done}} / {{total}} satır işlendi",
+    "timeline": "Aşama geçmişi",
+    "rows": "Satır bazında sonuçlar",
+    "line": "Satır {{line}}",
+    "stage": {
+      "idle": "Gönderim bekleniyor",
+      "validating": "Girdi biçimi doğrulanıyor",
+      "reading": "Yapılandırma okunuyor ve yinelenenler denetleniyor",
+      "writing": "CPA yapılandırma kaydı bekleniyor",
+      "verifying": "Kayıt onayı alınamadı; yapılandırma kontrol ediliyor",
+      "finished": "İşleme tamamlandı"
+    },
+    "row": {
+      "invalid": "Geçersiz biçim",
+      "duplicate": "Toplu işlemde yinelenen",
+      "already_present": "Zaten var, değiştirilmedi",
+      "pending": "İşleniyor",
+      "added": "Kaydedildi",
+      "confirmed_present": "Anahtarın varlığı doğrulandı",
+      "not_written": "Yazılmadı",
+      "unknown": "Kayıt doğrulanmadı"
+    },
+    "error": {
+      "empty": "En az bir anahtar girin.",
+      "batch_limit": "Satır veya karakter sınırı aşıldı. Girdiyi bölüp yeniden deneyin.",
+      "config_unavailable": "Güncel yapılandırma veya sürüm tanımı okunamadı. Yazma yapılmadı.",
+      "destination_changed": "Hedef değişti veya birden fazla eşleşme var. Listeyi yenileyip hedefi tekrar seçin.",
+      "proxy_mismatch": "Mevcut anahtarlar farklı proxy ayarları kullanıyor. Yeni anahtarın proxy ayarını sağlayıcı düzenleyicisinde yapın.",
+      "conflict": "Yapılandırma başka bir işlemle güncellendi. Yazma yapılmadı. Tekrar göndermeden önce yapılandırmayı kontrol edin.",
+      "write_rejected": "CPA yazmayı reddetti. Hedef yapılandırmasını ve yönetim izinlerini kontrol edin.",
+      "write_unconfirmed": "CPA kaydı doğrulamadı. Yeniden denemeden önce Yapay Zekâ Sağlayıcıları bölümünde anahtarları kontrol edin."
+    }
+  },
   "dashboard": {
     "hero_verdict_good": "Tüm Sistemler Dengede",
     "hero_verdict_warning": "Küçük Dalgalanma",

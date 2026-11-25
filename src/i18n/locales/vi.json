@@ -134,6 +134,56 @@
     "config_management": "Cấu hình gateway",
     "system_info": "Runtime & chẩn đoán"
   },
+  "provider_key_import": {
+    "nav": "Nhập khóa",
+    "nav_hint": "Thêm hàng loạt khóa API đã được cấp",
+    "title": "Nhập hàng loạt khóa API",
+    "description": "Thêm khóa đã được cấp vào nhà cung cấp tương thích OpenAI hiện có. Giữ nguyên khóa và cấu hình mô hình đang dùng.",
+    "input_title": "Cấu hình nhập",
+    "loading": "Đang đọc danh sách nhà cung cấp…",
+    "load_failed": "Không đọc được cấu hình nhà cung cấp",
+    "reload": "Tải lại",
+    "no_destinations": "Không có nhà cung cấp phù hợp",
+    "no_destinations_hint": "Trước tiên hãy thiết lập nhà cung cấp tương thích OpenAI có thể xác định duy nhất trong mục Nhà cung cấp AI.",
+    "destination": "Nhà cung cấp đích",
+    "choose_destination": "Chọn nhà cung cấp",
+    "keys": "Khóa API đã được cấp",
+    "key_hint": "Mỗi dòng một khóa, tối đa {{limit}} dòng. Không nhập tài khoản hoặc mật khẩu. Nội dung sẽ bị xóa khi gửi; kết quả chỉ hiện số dòng.",
+    "import": "Nhập vào nhà cung cấp",
+    "progress_title": "Tiến độ nhập",
+    "completed": "Đã xử lý {{done}} / {{total}} dòng",
+    "timeline": "Lịch sử các bước",
+    "rows": "Kết quả theo từng dòng",
+    "line": "Dòng {{line}}",
+    "stage": {
+      "idle": "Chờ gửi",
+      "validating": "Đang kiểm tra định dạng",
+      "reading": "Đang đọc cấu hình và kiểm tra trùng lặp",
+      "writing": "Đang chờ CPA lưu cấu hình",
+      "verifying": "Chưa nhận được xác nhận lưu; đang kiểm tra lại cấu hình",
+      "finished": "Đã xử lý xong"
+    },
+    "row": {
+      "invalid": "Định dạng không hợp lệ",
+      "duplicate": "Trùng trong lô",
+      "already_present": "Đã có, không thay đổi",
+      "pending": "Đang xử lý",
+      "added": "Đã lưu",
+      "confirmed_present": "Đã xác nhận khóa tồn tại",
+      "not_written": "Chưa ghi",
+      "unknown": "Chưa xác nhận lưu"
+    },
+    "error": {
+      "empty": "Nhập ít nhất một khóa.",
+      "batch_limit": "Vượt giới hạn dòng hoặc ký tự. Hãy chia thành nhiều lô rồi thử lại.",
+      "config_unavailable": "Không đọc được cấu hình hiện tại hoặc mã phiên bản. Không có thay đổi nào được ghi.",
+      "destination_changed": "Đích đã thay đổi hoặc không còn duy nhất. Tải lại rồi chọn lại nhà cung cấp.",
+      "proxy_mismatch": "Các khóa hiện có dùng thiết lập proxy khác nhau. Hãy đặt proxy cho khóa mới ở trang sửa nhà cung cấp.",
+      "conflict": "Một thao tác khác đã cập nhật cấu hình. Không có thay đổi nào được ghi. Hãy kiểm tra cấu hình trước khi gửi lại.",
+      "write_rejected": "CPA từ chối ghi. Hãy kiểm tra cấu hình đích và quyền quản trị.",
+      "write_unconfirmed": "CPA chưa xác nhận lưu. Hãy kiểm tra trong mục Nhà cung cấp AI xem khóa đã tồn tại chưa trước khi thử lại."
+    }
+  },
   "dashboard": {
     "hero_verdict_good": "Mọi hệ thống ổn định",
     "hero_verdict_warning": "Có chút trục trặc nhỏ",

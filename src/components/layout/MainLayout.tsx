@@ -35,6 +35,7 @@ import {
   IconSidebarRouting,
   IconSidebarSystem,
   IconChevronDown,
+  IconUpload,
 } from '@/components/ui/icons';
 import { INLINE_LOGO_JPEG } from '@/assets/logoInline';
 import {
@@ -640,6 +641,12 @@ export function MainLayout() {
           labelKey: 'nav.ai_providers',
           metaKey: 'nav_meta.ai_providers',
           icon: sidebarIcons.aiProviders,
+        },
+        {
+          path: '/provider-key-import',
+          labelKey: 'provider_key_import.nav',
+          metaKey: 'provider_key_import.nav_hint',
+          icon: <IconUpload size={18} />,
         },
         {
           path: '/auth-files',

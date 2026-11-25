@@ -134,6 +134,56 @@
     "config_management": "Gateway configuration",
     "system_info": "Runtime & diagnostics"
   },
+  "provider_key_import": {
+    "nav": "Key import",
+    "nav_hint": "Add issued API keys in a batch",
+    "title": "Batch import API keys",
+    "description": "Add issued keys to an existing OpenAI-compatible provider. Existing keys and model settings are kept.",
+    "input_title": "Import settings",
+    "loading": "Reading providers…",
+    "load_failed": "Could not read provider configuration",
+    "reload": "Reload",
+    "no_destinations": "No eligible providers",
+    "no_destinations_hint": "Set up an unambiguous OpenAI-compatible provider under AI Providers first.",
+    "destination": "Destination provider",
+    "choose_destination": "Select a provider",
+    "keys": "Issued API keys",
+    "key_hint": "One key per line, up to {{limit}} lines. Do not enter accounts or passwords. The input clears on submission; results show line numbers only.",
+    "import": "Import into provider",
+    "progress_title": "Import progress",
+    "completed": "Processed {{done}} / {{total}} lines",
+    "timeline": "Stage history",
+    "rows": "Per-line import results",
+    "line": "Line {{line}}",
+    "stage": {
+      "idle": "Waiting for submission",
+      "validating": "Validating input format",
+      "reading": "Reading configuration and checking duplicates",
+      "writing": "Waiting for CPA to save configuration",
+      "verifying": "No save acknowledgement; checking configuration",
+      "finished": "Finished processing"
+    },
+    "row": {
+      "invalid": "Invalid format",
+      "duplicate": "Duplicate in batch",
+      "already_present": "Already present, unchanged",
+      "pending": "Processing",
+      "added": "Saved",
+      "confirmed_present": "Confirmed present",
+      "not_written": "Not written",
+      "unknown": "Save not confirmed"
+    },
+    "error": {
+      "empty": "Enter at least one key.",
+      "batch_limit": "The batch exceeds the line or character limit. Split it and try again.",
+      "config_unavailable": "The current configuration or its version identifier could not be read. Nothing was written.",
+      "destination_changed": "The destination changed or is ambiguous. Reload and select it again.",
+      "proxy_mismatch": "The existing keys use different proxy settings. Set the new key's proxy in the provider editor.",
+      "conflict": "Another operation updated the configuration. Nothing was written. Check the configuration before resubmitting.",
+      "write_rejected": "CPA rejected the write. Check the destination configuration and management permissions.",
+      "write_unconfirmed": "CPA did not confirm the save. Check AI Providers for the keys before deciding whether to retry."
+    }
+  },
   "dashboard": {
     "hero_verdict_good": "All systems steady",
     "hero_verdict_warning": "Minor turbulence",
