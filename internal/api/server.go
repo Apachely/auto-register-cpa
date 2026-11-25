@@ -452,6 +452,11 @@ func (s *Server) Start() error {
 //   - error: An error if the server fails to stop
 func (s *Server) Stop(ctx context.Context) error {
 	log.Debug("Stopping API server...")
+	if s.mgmt != nil {
+		if errClose := s.mgmt.CloseRegisterBot(); errClose != nil {
+			log.WithError(errClose).Warn("registerbot: shutdown failed")
+		}
+	}
 
 	if s.keepAliveEnabled {
 		select {
