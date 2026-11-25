@@ -175,7 +175,8 @@ response bodies. Import stalls distinguish `verification_failed`,
 `provider_missing`, `config_conflict`, and `write_failed` when known.
 
 The FreeAI importer requires an existing, uniquely named `FreeAi` provider at
-`https://api.freeaiapikey.com/v1`. It checks the key with the models endpoint, then
+`https://api.freeaiapikey.com/v1`. It checks the key with an authenticated chat
+completion using the first configured model and a five-token output limit, then
 uses the same v8 configuration GET/PUT and ETag/If-Match contract as
 `providerKeyImport`. It preserves unrelated provider fields, avoids duplicate keys,
 and confirms the write by reading it back. The stored key entry retains the
