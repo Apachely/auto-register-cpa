@@ -717,7 +717,9 @@ const helperScript = `(function () {
     }
     return false;
   };
+  var lastTarget = null, inputTarget = null;
   var mark = function (el) {
+    lastTarget = el;
     var prev = document.querySelector('[data-cpa-target]');
     if (prev) { prev.removeAttribute('data-cpa-target'); }
     el.setAttribute('data-cpa-target', '1');
@@ -754,6 +756,32 @@ const helperScript = `(function () {
     }
     if (!el) { return null; }
     return mark(el);
+  };
+  var editable = function (el) {
+    return !!el && el.isConnected && visible(el) && !el.disabled && !el.readOnly && el.getAttribute('aria-disabled') !== 'true' && /^(INPUT|TEXTAREA)$/.test(el.tagName);
+  };
+  window.cpaPrepareInput = async function (selector, label) {
+    inputTarget = null;
+    if (!window.cpaFindInput(selector, label)) { return null; }
+    var el = lastTarget;
+    if (!editable(el)) { return null; }
+    el.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'});
+    await new Promise(function (resolve) { setTimeout(resolve, 150); });
+    if (!editable(el)) { return null; }
+    var r = el.getBoundingClientRect();
+    var left = Math.max(0, r.left), right = Math.min(innerWidth, r.right), top = Math.max(0, r.top), bottom = Math.min(innerHeight, r.bottom);
+    if (right - left < 2 || bottom - top < 2) { return null; }
+    var x = (left + right) / 2, y = (top + bottom) / 2;
+    var root = el.getRootNode(), hit = root.elementFromPoint(x, y);
+    if (hit !== el && !el.contains(hit)) { return null; }
+    inputTarget = el;
+    return {x: x, y: y};
+  };
+  window.cpaInputFocused = function () {
+    return editable(inputTarget) && inputTarget.getRootNode().activeElement === inputTarget;
+  };
+  window.cpaInputMatches = function (expected) {
+    return editable(inputTarget) && inputTarget.value === expected;
   };
   window.cpaReadAll = function () {
     var text = document.body ? document.body.innerText : '';
@@ -906,20 +934,41 @@ func (s *Session) clickAt(ctx context.Context, x, y float64) error {
 	return nil
 }
 
-// TypeInto focuses a field, clears it, then sends real keystrokes in chunks.
-// Google's client side validation only accepts input events, so the engine never
-// assigns value directly.
+var (
+	errInputNotReady = errors.New("registerbot: input is not yet editable or unobstructed")
+	errInputFocus    = errors.New("registerbot: input focus was not acquired")
+	errInputValue    = errors.New("registerbot: input value was not retained; retrying the field")
+	errSubmitReady   = errors.New("registerbot: Google Next control is not yet ready")
+)
+
+// TypeInto confirms focus and the resulting value instead of treating accepted
+// CDP commands as evidence that the page consumed the input. Readback returns
+// only boolean comparisons, never the field contents.
 func (s *Session) TypeInto(ctx context.Context, selector, label, value string) error {
-	result, errEval := s.Evaluate(ctx, fmt.Sprintf("cpaFindInput(%s, %s)", jsString(selector), jsString(label)), false)
+	result, errEval := s.Evaluate(ctx, fmt.Sprintf("cpaPrepareInput(%s, %s)", jsString(selector), jsString(label)), true)
 	if errEval != nil {
 		return errEval
 	}
 	point, ok := asPoint(result)
 	if !ok {
-		return fmt.Errorf("registerbot: field %q (%s) not found", selector, label)
+		return errInputNotReady
 	}
 	if errClick := s.clickAt(ctx, point.x, point.y); errClick != nil {
 		return errClick
+	}
+	focused, errFocus := s.Evaluate(ctx, "cpaInputFocused()", false)
+	if errFocus != nil {
+		return errFocus
+	}
+	if focused != true {
+		return errInputFocus
+	}
+	matches, errMatch := s.Evaluate(ctx, fmt.Sprintf("cpaInputMatches(%s)", jsString(value)), false)
+	if errMatch != nil {
+		return errMatch
+	}
+	if matches == true {
+		return nil
 	}
 	if _, errSelect := s.call(ctx, "Input.dispatchKeyEvent", map[string]any{
 		"type": "rawKeyDown", "key": "a", "code": "KeyA", "modifiers": 2,
@@ -933,18 +982,76 @@ func (s *Session) TypeInto(ctx context.Context, selector, label, value string) e
 	}); errUp != nil {
 		return fmt.Errorf("registerbot: select all release: %w", errUp)
 	}
-	if _, errClear := s.call(ctx, "Input.dispatchKeyEvent", map[string]any{
-		"type": "rawKeyDown", "key": "Backspace", "code": "Backspace",
-		"windowsVirtualKeyCode": 8, "nativeVirtualKeyCode": 8,
-	}); errClear != nil {
+	if errClear := s.PressKey(ctx, "Backspace"); errClear != nil {
 		return fmt.Errorf("registerbot: clear field: %w", errClear)
 	}
-	for _, chunk := range splitChunks(value, 8) {
-		if _, errInsert := s.call(ctx, "Input.insertText", map[string]any{"text": chunk}); errInsert != nil {
-			return fmt.Errorf("registerbot: insert text: %w", errInsert)
-		}
+	cleared, errCleared := s.Evaluate(ctx, "cpaInputFocused() && cpaInputMatches('')", false)
+	if errCleared != nil {
+		return errCleared
+	}
+	if cleared != true {
+		return errInputValue
+	}
+	if _, errInsert := s.call(ctx, "Input.insertText", map[string]any{"text": value}); errInsert != nil {
+		return fmt.Errorf("registerbot: insert text: %w", errInsert)
+	}
+	retained, errRetained := s.Evaluate(ctx, fmt.Sprintf(`(async function(){
+		await new Promise(function(resolve){setTimeout(resolve,150);});
+		return cpaInputFocused() && cpaInputMatches(%s);
+	})()`, jsString(value)), true)
+	if errRetained != nil {
+		return errRetained
+	}
+	if retained != true {
+		return errInputValue
 	}
 	return nil
+}
+
+// SubmitGoogleCredential resolves the current form's enabled submit control,
+// checking the field again after layout settles. It never clicks a broad
+// jsaction ancestor merely because that ancestor contains the word "Next".
+func (s *Session) SubmitGoogleCredential(ctx context.Context, stage, value string) error {
+	container := ""
+	switch stage {
+	case "email":
+		container = "#identifierNext"
+	case "password":
+		container = "#passwordNext"
+	default:
+		return errSubmitReady
+	}
+	result, errEval := s.Evaluate(ctx, fmt.Sprintf(`(async function(){
+		if(location.origin!=='https://accounts.google.com'||!cpaInputMatches(%s))return null;
+		var visible=function(el){var r=el.getBoundingClientRect(),st=getComputedStyle(el);return el.isConnected&&r.width>1&&r.height>1&&st.display!=='none'&&st.visibility!=='hidden'&&Number(st.opacity)!==0;};
+		var enabled=function(el){return visible(el)&&!el.disabled&&!el.closest('[aria-disabled="true"],[aria-busy="true"]');};
+		var container=document.querySelector(%s),button=null;
+		if(container){
+			button=container.matches('button,[role="button"],input[type="submit"]')?container:container.querySelector('button,[role="button"],input[type="submit"]');
+		}else{
+			button=Array.from(document.querySelectorAll('button,[role="button"],input[type="submit"]')).find(function(el){
+				var label=String(el.innerText||el.value||el.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim();
+				return /^(next|continue|下一步|继续)$/i.test(label)&&enabled(el);
+			});
+		}
+		if(!button||!enabled(button))return null;
+		button.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
+		await new Promise(function(resolve){setTimeout(resolve,150);});
+		if(location.origin!=='https://accounts.google.com'||!enabled(button)||!cpaInputMatches(%s))return null;
+		var r=button.getBoundingClientRect(),left=Math.max(0,r.left),right=Math.min(innerWidth,r.right),top=Math.max(0,r.top),bottom=Math.min(innerHeight,r.bottom);
+		if(right-left<2||bottom-top<2)return null;
+		var x=(left+right)/2,y=(top+bottom)/2,hit=document.elementFromPoint(x,y);
+		if(!hit||(hit!==button&&!button.contains(hit)))return null;
+		return {x:x,y:y};
+	})()`, jsString(value), jsString(container), jsString(value)), true)
+	if errEval != nil {
+		return errEval
+	}
+	point, ok := asPoint(result)
+	if !ok {
+		return errSubmitReady
+	}
+	return s.clickAt(ctx, point.x, point.y)
 }
 
 func splitChunks(value string, size int) []string {

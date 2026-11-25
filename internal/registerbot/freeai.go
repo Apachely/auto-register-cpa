@@ -123,6 +123,9 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 	acted := false
 	workspaceClicks := 0
 	var lastWorkspaceClick time.Time
+	credentialSubmissions := 0
+	var lastCredentialSubmit time.Time
+	lastCredentialIssue := ""
 	sawOnboarding, creditConfirmed := false, false
 	ticker := time.NewTicker(700 * time.Millisecond)
 	defer ticker.Stop()
@@ -162,12 +165,19 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			lastAction, lastProgress, acted = page.Action, time.Now(), false
 			lastActionPath = actionPath
 			workspaceClicks = 0
+			credentialSubmissions = 0
+			lastCredentialIssue = ""
 			task.Report(page.Action, "info", freeAIStageMessage(page.Action))
 		}
 		// A dispatched click does not prove that the terms page advanced. Retry
 		// briefly while it remains visible, without extending the stall budget.
 		if page.Action == "speedbump" && acted && workspaceClicks < 3 && time.Since(lastWorkspaceClick) >= 2*time.Second {
 			acted = false
+		}
+		credentialStep := page.Action == "email" || page.Action == "password"
+		if credentialStep && acted && credentialSubmissions < 3 && time.Since(lastCredentialSubmit) >= 4*time.Second {
+			acted = false
+			task.Report(page.Action, "warn", "Google sign-in page did not advance; retrying the current form submission")
 		}
 		if page.Action == "key" && freeAIHost(page.URL) && keyPattern.MatchString(page.Key) {
 			if sawOnboarding {
@@ -231,7 +241,7 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 				}
 				errAction = session.TypeInto(acquireCtx, "#identifierId,input[name=identifier],input[type=email]", "email", task.Account.Email)
 				if errAction == nil {
-					errAction = session.ClickText(acquireCtx, "Next", "下一步", "继续")
+					errAction = session.SubmitGoogleCredential(acquireCtx, "email", task.Account.Email)
 				}
 			case "password":
 				if !googleIdentityHost(page.URL) {
@@ -239,7 +249,7 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 				}
 				errAction = session.TypeInto(acquireCtx, "input[type=password]", "password", task.Account.Password)
 				if errAction == nil {
-					errAction = session.ClickText(acquireCtx, "Next", "下一步", "继续")
+					errAction = session.SubmitGoogleCredential(acquireCtx, "password", task.Account.Password)
 				}
 			case "choose_account":
 				errAction = session.ClickText(acquireCtx, task.Account.Email, "Use another account", "使用其他帐号", "使用其他账号")
@@ -264,8 +274,26 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			}
 			if errAction == nil {
 				acted = true
-				if page.Action != "speedbump" || workspaceClicks == 1 {
+				if credentialStep {
+					credentialSubmissions++
+					lastCredentialSubmit = time.Now()
+					lastCredentialIssue = ""
+					task.Report(page.Action, "info", "Google sign-in field confirmed and Next clicked; waiting for page transition")
+				}
+				if (!credentialStep || credentialSubmissions == 1) && (page.Action != "speedbump" || workspaceClicks == 1) {
 					lastProgress = time.Now()
+				}
+			} else if credentialStep {
+				issue := "Google sign-in control changed during interaction; waiting for the current form"
+				for _, expected := range []error{errInputNotReady, errInputFocus, errInputValue, errSubmitReady} {
+					if errors.Is(errAction, expected) {
+						issue = expected.Error()
+						break
+					}
+				}
+				if issue != lastCredentialIssue {
+					lastCredentialIssue = issue
+					task.Report(page.Action, "warn", issue)
 				}
 			}
 			var networkError *NavigationError
