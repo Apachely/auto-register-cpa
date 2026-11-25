@@ -708,14 +708,7 @@ const helperScript = `(function () {
     return false;
   };
   window.cpaTextVisible = function (text) {
-    var want = norm(text);
-    if (!want) { return false; }
-    var nodes = document.querySelectorAll('button, [role="button"], a, input[type=submit], label, [jsaction]');
-    for (var i = 0; i < nodes.length; i++) {
-      var label = norm(nodes[i].innerText || nodes[i].textContent || nodes[i].value || nodes[i].getAttribute('aria-label') || '');
-      if (label && label.indexOf(want) >= 0 && visible(nodes[i])) { return true; }
-    }
-    return false;
+    return !!findControl([text]);
   };
   var lastTarget = null, inputTarget = null;
   var mark = function (el) {
@@ -726,21 +719,45 @@ const helperScript = `(function () {
     var r = el.getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2, text: norm(el.innerText || el.getAttribute('aria-label')), id: el.id || '' };
   };
-  window.cpaFindButton = function (text) {
-    var want = norm(text);
-    if (!want) { return null; }
-    var nodes = document.querySelectorAll('button, [role="button"], a, input[type=submit], [jsaction]');
-    var best = null, bestScore = 0;
-    for (var i = 0; i < nodes.length; i++) {
-      var el = nodes[i];
-      var label = norm(el.innerText || el.textContent || el.value || el.getAttribute('aria-label') || '');
-      if (!label) { continue; }
-      var score = 0;
-      if (label === want) { score = 3; } else if (label.indexOf(want) === 0) { score = 2; } else if (label.indexOf(want) >= 0) { score = 1; }
-      if (score > bestScore && visible(el) && !el.disabled) { bestScore = score; best = el; }
+  var controlEnabled = function (el) {
+    return !!el && el.isConnected && visible(el) && !el.disabled && !el.matches(':disabled') && !el.closest('[aria-disabled="true"],[aria-busy="true"],[aria-hidden="true"],[inert]') && !(el.control && el.control.disabled);
+  };
+  var controlLabels = function (el) {
+    return [el.innerText, el.textContent, el.value, el.getAttribute('aria-label'), el.getAttribute('data-identifier')].filter(Boolean).map(norm);
+  };
+  var findControl = function (texts) {
+    var nodes = Array.from(document.querySelectorAll('button,[role="button"],a[href],input[type="submit"],input[type="button"],[role="option"],[data-identifier]'));
+    for (var i = 0; i < texts.length; i++) {
+      var want = norm(texts[i]);
+      if (!want) { continue; }
+      for (var j = 0; j < nodes.length; j++) {
+        if (controlEnabled(nodes[j]) && controlLabels(nodes[j]).includes(want)) { return {element: nodes[j], matched: texts[i]}; }
+      }
     }
-    if (!best) { return null; }
-    return mark(best);
+    return null;
+  };
+  window.cpaControlPoint = async function (el) {
+    if (!controlEnabled(el)) { return null; }
+    el.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'});
+    await new Promise(function (resolve) { setTimeout(resolve, 150); });
+    if (!controlEnabled(el)) { return null; }
+    var r = el.getBoundingClientRect();
+    var left = Math.max(0, r.left), right = Math.min(innerWidth, r.right), top = Math.max(0, r.top), bottom = Math.min(innerHeight, r.bottom);
+    if (right - left < 2 || bottom - top < 2) { return null; }
+    var x = (left + right) / 2, y = (top + bottom) / 2, hit = el.getRootNode().elementFromPoint(x, y);
+    if (!hit || (hit !== el && !el.contains(hit))) { return null; }
+    return {x: x, y: y};
+  };
+  window.cpaFindButton = async function (texts) {
+    var found = findControl(Array.isArray(texts) ? texts : [texts]);
+    if (!found) { return null; }
+    var point = await window.cpaControlPoint(found.element);
+    if (!point || !controlLabels(found.element).includes(norm(found.matched))) { return null; }
+    point.matched = found.matched;
+    return point;
+  };
+  window.cpaPrepareSelector = async function (selector) {
+    return window.cpaControlPoint(shadowSearch(selector));
   };
   window.cpaFindInput = function (selector, label) {
     var el = selector ? shadowSearch(selector) : null;
@@ -765,17 +782,10 @@ const helperScript = `(function () {
     if (!window.cpaFindInput(selector, label)) { return null; }
     var el = lastTarget;
     if (!editable(el)) { return null; }
-    el.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'});
-    await new Promise(function (resolve) { setTimeout(resolve, 150); });
-    if (!editable(el)) { return null; }
-    var r = el.getBoundingClientRect();
-    var left = Math.max(0, r.left), right = Math.min(innerWidth, r.right), top = Math.max(0, r.top), bottom = Math.min(innerHeight, r.bottom);
-    if (right - left < 2 || bottom - top < 2) { return null; }
-    var x = (left + right) / 2, y = (top + bottom) / 2;
-    var root = el.getRootNode(), hit = root.elementFromPoint(x, y);
-    if (hit !== el && !el.contains(hit)) { return null; }
+    var point = await window.cpaControlPoint(el);
+    if (!point || !editable(el)) { return null; }
     inputTarget = el;
-    return {x: x, y: y};
+    return point;
   };
   window.cpaInputFocused = function () {
     return editable(inputTarget) && inputTarget.getRootNode().activeElement === inputTarget;
@@ -872,19 +882,22 @@ func asPoint(value any) (clickPoint, bool) {
 
 // locateText resolves the first visible control matching one of the labels.
 func (s *Session) locateText(ctx context.Context, texts []string) (clickPoint, string, error) {
+	labels := make([]string, 0, len(texts))
 	for _, text := range texts {
 		if strings.TrimSpace(text) == "" {
 			continue
 		}
-		value, errEval := s.Evaluate(ctx, fmt.Sprintf("cpaFindButton(%s)", jsString(text)), false)
-		if errEval != nil {
-			return clickPoint{}, "", errEval
-		}
-		if point, ok := asPoint(value); ok {
-			return point, text, nil
-		}
+		labels = append(labels, jsString(text))
 	}
-	return clickPoint{}, "", fmt.Errorf("registerbot: no enabled control labelled %q", strings.Join(texts, " / "))
+	value, errEval := s.Evaluate(ctx, "cpaFindButton(["+strings.Join(labels, ",")+"])", true)
+	if errEval != nil {
+		return clickPoint{}, "", errEval
+	}
+	if point, ok := asPoint(value); ok {
+		matched, _ := value.(map[string]any)["matched"].(string)
+		return point, matched, nil
+	}
+	return clickPoint{}, "", errControlNotReady
 }
 
 // ClickText performs a real mouse click on the first visible enabled control
@@ -899,13 +912,13 @@ func (s *Session) ClickText(ctx context.Context, texts ...string) error {
 
 // ClickSelector performs a real mouse click on the element matching a selector.
 func (s *Session) ClickSelector(ctx context.Context, selector string) error {
-	value, errEval := s.Evaluate(ctx, fmt.Sprintf("cpaFindInput(%s, '')", jsString(selector)), false)
+	value, errEval := s.Evaluate(ctx, fmt.Sprintf("cpaPrepareSelector(%s)", jsString(selector)), true)
 	if errEval != nil {
 		return errEval
 	}
 	point, ok := asPoint(value)
 	if !ok {
-		return fmt.Errorf("registerbot: selector %q matched nothing visible", selector)
+		return errControlNotReady
 	}
 	return s.clickAt(ctx, point.x, point.y)
 }
@@ -935,10 +948,11 @@ func (s *Session) clickAt(ctx context.Context, x, y float64) error {
 }
 
 var (
-	errInputNotReady = errors.New("registerbot: input is not yet editable or unobstructed")
-	errInputFocus    = errors.New("registerbot: input focus was not acquired")
-	errInputValue    = errors.New("registerbot: input value was not retained; retrying the field")
-	errSubmitReady   = errors.New("registerbot: Google Next control is not yet ready")
+	errControlNotReady = errors.New("registerbot: exact control is not ready or is obstructed")
+	errInputNotReady   = errors.New("registerbot: input is not yet editable or unobstructed")
+	errInputFocus      = errors.New("registerbot: input focus was not acquired")
+	errInputValue      = errors.New("registerbot: input value was not retained; retrying the field")
+	errSubmitReady     = errors.New("registerbot: Google Next control is not yet ready")
 )
 
 // TypeInto confirms focus and the resulting value instead of treating accepted
@@ -1023,26 +1037,15 @@ func (s *Session) SubmitGoogleCredential(ctx context.Context, stage, value strin
 	}
 	result, errEval := s.Evaluate(ctx, fmt.Sprintf(`(async function(){
 		if(location.origin!=='https://accounts.google.com'||!cpaInputMatches(%s))return null;
-		var visible=function(el){var r=el.getBoundingClientRect(),st=getComputedStyle(el);return el.isConnected&&r.width>1&&r.height>1&&st.display!=='none'&&st.visibility!=='hidden'&&Number(st.opacity)!==0;};
-		var enabled=function(el){return visible(el)&&!el.disabled&&!el.closest('[aria-disabled="true"],[aria-busy="true"]');};
-		var container=document.querySelector(%s),button=null;
+		var container=document.querySelector(%s),button=null,point=null;
 		if(container){
 			button=container.matches('button,[role="button"],input[type="submit"]')?container:container.querySelector('button,[role="button"],input[type="submit"]');
+			point=await cpaControlPoint(button);
 		}else{
-			button=Array.from(document.querySelectorAll('button,[role="button"],input[type="submit"]')).find(function(el){
-				var label=String(el.innerText||el.value||el.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim();
-				return /^(next|continue|下一步|继续)$/i.test(label)&&enabled(el);
-			});
+			point=await cpaFindButton(['Next','Continue','下一步','继续']);
 		}
-		if(!button||!enabled(button))return null;
-		button.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
-		await new Promise(function(resolve){setTimeout(resolve,150);});
-		if(location.origin!=='https://accounts.google.com'||!enabled(button)||!cpaInputMatches(%s))return null;
-		var r=button.getBoundingClientRect(),left=Math.max(0,r.left),right=Math.min(innerWidth,r.right),top=Math.max(0,r.top),bottom=Math.min(innerHeight,r.bottom);
-		if(right-left<2||bottom-top<2)return null;
-		var x=(left+right)/2,y=(top+bottom)/2,hit=document.elementFromPoint(x,y);
-		if(!hit||(hit!==button&&!button.contains(hit)))return null;
-		return {x:x,y:y};
+		if(location.origin!=='https://accounts.google.com'||!cpaInputMatches(%s))return null;
+		return point;
 	})()`, jsString(value), jsString(container), jsString(value)), true)
 	if errEval != nil {
 		return errEval
@@ -1127,22 +1130,7 @@ func (s *Session) AcceptWorkspaceTerms(ctx context.Context) error {
 			}
 		});
 		await new Promise(function(resolve){setTimeout(resolve,250);});
-		var labels=['i understand','i undetstand','我了解','我理解','我知道了','我明白了'];
-		var controls=Array.from(document.querySelectorAll('button,[role="button"],input[type="submit"],input[type="button"]'));
-		var button=controls.find(function(el){
-			var label=String(el.innerText||el.value||el.getAttribute('aria-label')||el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
-			return labels.includes(label)&&visible(el)&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';
-		});
-		if(!button)return null;
-		button.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
-		await new Promise(function(resolve){setTimeout(resolve,100);});
-		if(!button.isConnected||button.disabled||button.getAttribute('aria-disabled')==='true')return null;
-		var rect=button.getBoundingClientRect();
-		var left=Math.max(0,rect.left),right=Math.min(innerWidth,rect.right),top=Math.max(0,rect.top),bottom=Math.min(innerHeight,rect.bottom);
-		if(right-left<2||bottom-top<2)return null;
-		var x=(left+right)/2,y=(top+bottom)/2,hit=document.elementFromPoint(x,y);
-		if(!hit||(hit!==button&&!button.contains(hit)))return null;
-		return {x:x,y:y};
+		return cpaFindButton(['I understand','I undetstand','我了解','我理解','我知道了','我明白了']);
 	})()`, true)
 	if errEval != nil {
 		return errEval

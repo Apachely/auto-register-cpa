@@ -690,7 +690,7 @@ func (e *Engine) execute(ctx context.Context, task *Task, harvest Harvest) (Harv
 	if errImport := e.importer(ctx, task.Channel, harvest); errImport != nil {
 		return harvest, errImport
 	}
-	task.Report(StageWritingKey, "info", "provider key committed")
+	task.Report(StageWritingKey, "info", "key_verified_imported")
 	return harvest, nil
 }
 

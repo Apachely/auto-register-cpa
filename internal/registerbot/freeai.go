@@ -46,6 +46,7 @@ func (d *FreeAIDriver) Probe(ctx context.Context) error {
 type freeAIPage struct {
 	URL             string `json:"url"`
 	Action          string `json:"action"`
+	PageState       string `json:"page_state"`
 	Key             string `json:"key"`
 	NetworkCode     string `json:"network_code"`
 	HumanChallenge  bool   `json:"human_challenge"`
@@ -121,11 +122,9 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 	lastActionPath := ""
 	lastProgress := time.Now()
 	acted := false
-	workspaceClicks := 0
-	var lastWorkspaceClick time.Time
-	credentialSubmissions := 0
-	var lastCredentialSubmit time.Time
-	lastCredentialIssue := ""
+	actionAttempts := 0
+	var lastDispatch time.Time
+	lastActionIssue := ""
 	sawOnboarding, creditConfirmed := false, false
 	ticker := time.NewTicker(700 * time.Millisecond)
 	defer ticker.Stop()
@@ -159,25 +158,22 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 		}
 		actionPath := ""
 		if parsed, errURL := url.Parse(page.URL); errURL == nil {
-			actionPath = parsed.Hostname() + parsed.Path
+			actionPath = parsed.Hostname() + parsed.Path + "#" + page.PageState
 		}
 		if (page.Action != lastAction || actionPath != lastActionPath) && page.Action != "loading" {
 			lastAction, lastProgress, acted = page.Action, time.Now(), false
 			lastActionPath = actionPath
-			workspaceClicks = 0
-			credentialSubmissions = 0
-			lastCredentialIssue = ""
+			actionAttempts = 0
+			lastActionIssue = ""
 			task.Report(page.Action, "info", freeAIStageMessage(page.Action))
 		}
-		// A dispatched click does not prove that the terms page advanced. Retry
-		// briefly while it remains visible, without extending the stall budget.
-		if page.Action == "speedbump" && acted && workspaceClicks < 3 && time.Since(lastWorkspaceClick) >= 2*time.Second {
-			acted = false
-		}
+		// Completion is observed through the next page state, not a CDP ack.
+		// Only repeat navigation/continuation actions; never toggle a revealed
+		// key or submit the onboarding credit claim twice automatically.
 		credentialStep := page.Action == "email" || page.Action == "password"
-		if credentialStep && acted && credentialSubmissions < 3 && time.Since(lastCredentialSubmit) >= 4*time.Second {
+		if acted && retryFreeAIAction(page.Action) && actionAttempts < 3 && time.Since(lastDispatch) >= 4*time.Second {
 			acted = false
-			task.Report(page.Action, "warn", "Google sign-in page did not advance; retrying the current form submission")
+			task.Report(page.Action, "warn", "action_retry")
 		}
 		if page.Action == "key" && freeAIHost(page.URL) && keyPattern.MatchString(page.Key) {
 			if sawOnboarding {
@@ -254,15 +250,9 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			case "choose_account":
 				errAction = session.ClickText(acquireCtx, task.Account.Email, "Use another account", "使用其他帐号", "使用其他账号")
 			case "consent":
-				_ = session.ScrollToEnd(acquireCtx)
-				errAction = session.ClickText(acquireCtx, "I understand", "我了解", "我知道了", "我明白了", "I agree", "我同意", "Allow", "允许", "Continue", "继续", "Accept", "接受", "Next", "下一步")
+				errAction = session.ClickText(acquireCtx, "Continue", "继续", "Allow", "允许", "I agree", "我同意", "Accept", "接受", "Next", "下一步", "I understand", "我了解", "我知道了", "我明白了")
 			case "speedbump":
 				errAction = session.AcceptWorkspaceTerms(acquireCtx)
-				if errAction == nil {
-					workspaceClicks++
-					lastWorkspaceClick = time.Now()
-					task.Report("speedbump", "info", "Workspace terms button clicked; waiting for navigation")
-				}
 			case "google":
 				errAction = session.ClickText(acquireCtx, "Continue with Google", "Sign in with Google", "使用 Google", "Google")
 			case "reveal":
@@ -274,25 +264,27 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			}
 			if errAction == nil {
 				acted = true
+				actionAttempts++
+				lastDispatch = time.Now()
+				lastActionIssue = ""
+				message := "action_dispatched"
 				if credentialStep {
-					credentialSubmissions++
-					lastCredentialSubmit = time.Now()
-					lastCredentialIssue = ""
-					task.Report(page.Action, "info", "Google sign-in field confirmed and Next clicked; waiting for page transition")
+					message = "credential_submitted"
 				}
-				if (!credentialStep || credentialSubmissions == 1) && (page.Action != "speedbump" || workspaceClicks == 1) {
+				task.Report(page.Action, "info", message)
+				if actionAttempts == 1 {
 					lastProgress = time.Now()
 				}
-			} else if credentialStep {
-				issue := "Google sign-in control changed during interaction; waiting for the current form"
-				for _, expected := range []error{errInputNotReady, errInputFocus, errInputValue, errSubmitReady} {
-					if errors.Is(errAction, expected) {
-						issue = expected.Error()
-						break
-					}
+			} else if page.Action != "loading" {
+				issue := "action_not_ready"
+				switch {
+				case errors.Is(errAction, errInputFocus):
+					issue = "input_focus_pending"
+				case errors.Is(errAction, errInputValue):
+					issue = "input_value_pending"
 				}
-				if issue != lastCredentialIssue {
-					lastCredentialIssue = issue
+				if issue != lastActionIssue {
+					lastActionIssue = issue
 					task.Report(page.Action, "warn", issue)
 				}
 			}
@@ -310,6 +302,15 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 		case <-acquireCtx.Done():
 		case <-ticker.C:
 		}
+	}
+}
+
+func retryFreeAIAction(action string) bool {
+	switch action {
+	case "email", "password", "consent", "speedbump", "choose_account", "google", "dashboard", "onboarding_entry", "onboarding_credit", "onboarding_tool", "onboarding_test", "onboarding_discord", "onboarding_plans":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -407,5 +408,10 @@ const freeAIInspectScript = `(function(){
   } else if(/continue with google|sign in with google|使用 google/.test(text)){action='google';}
   else if(path!=='/register'&&path!=='/login'){action='dashboard';}
  }
- return {url:location.href,action:action,key:key,network_code:networkCode,human_challenge:humanChallenge,credit_confirmed:creditConfirmed};
+ // Google can replace consent screens without changing the path. Compare a
+ // semantic fingerprint of headings and controls, excluding input values,
+ // query strings, disabled states and transient loading indicators.
+ var signature=Array.from(document.querySelectorAll('h1,h2,[role="heading"],button,[role="button"],input[type="submit"]')).filter(visible).map(function(el){return String(el.innerText||el.value||el.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim().toLowerCase();}).join('|');
+ var hash=2166136261;for(var s=0;s<signature.length;s++){hash=Math.imul(hash^signature.charCodeAt(s),16777619);}
+ return {url:location.href,action:action,page_state:(hash>>>0).toString(16),key:key,network_code:networkCode,human_challenge:humanChallenge,credit_confirmed:creditConfirmed};
 })()`

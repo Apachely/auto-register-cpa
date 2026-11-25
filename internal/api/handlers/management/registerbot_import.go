@@ -213,12 +213,13 @@ func verifyRegisterBotKey(ctx context.Context, endpoint, proxy, key string, mode
 	var completion struct {
 		Choices []struct {
 			Message struct {
-				Role string `json:"role"`
+				Role    string `json:"role"`
+				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
 		Error any `json:"error"`
 	}
-	if errDecode := json.Unmarshal(data, &completion); errDecode != nil || completion.Error != nil || len(completion.Choices) == 0 || completion.Choices[0].Message.Role != "assistant" {
+	if errDecode := json.Unmarshal(data, &completion); errDecode != nil || completion.Error != nil || len(completion.Choices) == 0 || completion.Choices[0].Message.Role != "assistant" || strings.TrimSpace(completion.Choices[0].Message.Content) == "" {
 		return errors.New("registerbot: key verification returned no assistant completion")
 	}
 	return nil
@@ -263,36 +264,39 @@ func (h *Handler) importRegisterBotKey(ctx context.Context, channel registerbot.
 	if errModel != nil {
 		return errModel
 	}
-	verificationProxy := harvest.VerificationProxyURL
-	if verificationProxy == "" {
-		verificationProxy = "direct"
-	}
-	if errVerify := verifyRegisterBotKey(ctx, endpoint, verificationProxy, harvest.APIKey, model); errVerify != nil {
+	// Browser fallback is not evidence that the saved provider can use the key.
+	// Verify through the exact proxy that the provider entry will persist.
+	if errVerify := verifyRegisterBotKey(ctx, endpoint, channel.ProxyURL, harvest.APIKey, model); errVerify != nil {
 		return errVerify
-	}
-	if present {
-		return nil
 	}
 	if errContext := ctx.Err(); errContext != nil {
 		return errContext
 	}
-	response, errWrite := h.registerBotConfigRequest(ctx, http.MethodPut, body, etag)
-	if errWrite != nil {
-		return errors.New("registerbot: provider write unconfirmed")
+	if !present {
+		response, errWrite := h.registerBotConfigRequest(ctx, http.MethodPut, body, etag)
+		if errWrite != nil {
+			return errors.New("registerbot: provider write unconfirmed")
+		}
+		if response.status == http.StatusConflict || response.status == http.StatusPreconditionFailed {
+			return errors.New("registerbot: provider configuration conflict; resume import")
+		}
+		if response.status != http.StatusOK {
+			return errors.New("registerbot: provider write rejected")
+		}
 	}
-	if response.status == http.StatusConflict || response.status == http.StatusPreconditionFailed {
-		return errors.New("registerbot: provider configuration conflict; resume import")
-	}
-	if response.status != http.StatusOK {
-		return errors.New("registerbot: provider write rejected")
-	}
+	// Read back even an already-present key: configuration may have changed
+	// while inference was in flight. Never report success for a removed key.
 	confirmation, errConfirm := h.registerBotConfigRequest(ctx, http.MethodGet, nil, "")
 	if errConfirm != nil || confirmation.status != http.StatusOK {
 		return errors.New("registerbot: provider readback failed")
 	}
-	_, _, confirmed, errPlan := registerBotImportPlan(confirmation.body.Bytes(), channel, harvest.APIKey)
-	if errPlan != nil || !confirmed {
+	_, confirmedEndpoint, confirmed, errPlan := registerBotImportPlan(confirmation.body.Bytes(), channel, harvest.APIKey)
+	if errPlan != nil || !confirmed || confirmedEndpoint != endpoint {
 		return errors.New("registerbot: provider write unconfirmed")
+	}
+	confirmedModel, errModel := registerBotVerificationModel(confirmation.body.Bytes(), channel)
+	if errModel != nil || confirmedModel != model {
+		return errors.New("registerbot: provider configuration conflict after key verification")
 	}
 	return nil
 }
