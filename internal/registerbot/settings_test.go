@@ -2,6 +2,26 @@ package registerbot
 
 import "testing"
 
+func TestProxyPoolSettingsDefaultAndSafetyBounds(t *testing.T) {
+	settings := DefaultSettings()
+	if !settings.ProxyPool.Enabled() || settings.ProxyPool.MaxUsableAccountsPerIP != 3 {
+		t.Fatalf("unexpected compatibility defaults: %+v", settings.ProxyPool)
+	}
+	settings.ProxyPool.Mode = ProxyPoolModeEnforce
+	if errValidate := validateSettings(&settings); errValidate != nil {
+		t.Fatal(errValidate)
+	}
+	settings.ProxyPool.MaxUsableAccountsPerIP = 4
+	if errValidate := validateSettings(&settings); errValidate == nil {
+		t.Fatal("per-IP usable-account limit exceeded the hard maximum")
+	}
+	settings.ProxyPool.MaxUsableAccountsPerIP = 3
+	settings.Gateway.VerifyExitIP = false
+	if errValidate := validateSettings(&settings); errValidate == nil {
+		t.Fatal("enforced proxy pool accepted unverified exits")
+	}
+}
+
 func TestFreeAIOnboardingDefaults(t *testing.T) {
 	fresh := DefaultFreeAIChannel()
 	if fresh.OnboardingRole != "student" || fresh.OnboardingSource != "google" {

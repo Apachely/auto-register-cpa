@@ -198,6 +198,44 @@ func (h *Handler) ProbeRegisterBotGateway(c *gin.Context) {
 	}
 }
 
+func (h *Handler) GetRegisterBotProxyPool(c *gin.Context) {
+	if engine := h.requireRegisterBot(c); engine != nil {
+		c.JSON(http.StatusOK, engine.ProxyPoolSnapshot())
+	}
+}
+
+func (h *Handler) PutRegisterBotProxyPool(c *gin.Context) {
+	engine := h.requireRegisterBot(c)
+	if engine == nil {
+		return
+	}
+	var settings registerbot.ProxyPoolSettings
+	if !decodeRegisterBot(c, &settings) {
+		return
+	}
+	if errUpdate := engine.UpdateProxyPool(settings); errUpdate != nil {
+		registerBotError(c, http.StatusConflict, "proxy_pool_update_failed")
+		return
+	}
+	engine.Events().Emit(registerbot.Event{Stage: "proxy_pool_updated", Level: "info", Message: "proxy_pool_updated"})
+	c.JSON(http.StatusOK, engine.ProxyPoolSnapshot())
+}
+
+func (h *Handler) RefreshRegisterBotProxyPool(c *gin.Context) {
+	engine := h.requireRegisterBot(c)
+	if engine == nil {
+		return
+	}
+	snapshot, errRefresh := engine.RefreshProxyPool(c.Request.Context())
+	if errRefresh != nil {
+		engine.Events().Emit(registerbot.Event{Stage: "proxy_pool_unavailable", Level: "warning", Message: "proxy_pool_unavailable"})
+		registerBotError(c, http.StatusServiceUnavailable, "proxy_pool_refresh_failed")
+		return
+	}
+	engine.Events().Emit(registerbot.Event{Stage: "proxy_pool_refreshed", Level: "info", Message: "proxy_pool_refreshed"})
+	c.JSON(http.StatusOK, snapshot)
+}
+
 // RegisterBotEvents streams authenticated cursor replay without query-string credentials.
 func (h *Handler) RegisterBotEvents(c *gin.Context) {
 	engine := h.requireRegisterBot(c)

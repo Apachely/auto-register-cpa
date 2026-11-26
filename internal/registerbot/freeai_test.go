@@ -255,8 +255,8 @@ func TestFreeAIOnboardingFastPath(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	harvest, err := NewFreeAIDriver(nil).Run(ctx, task)
-	if err != nil || harvest.APIKey != key {
-		t.Fatalf("harvest valid=%v error=%v", harvest.APIKey == key, err)
+	if err != nil || harvest.APIKey != key || !harvest.CreditConfirmed {
+		t.Fatalf("harvest valid=%v credited=%v error=%v", harvest.APIKey == key, harvest.CreditConfirmed, err)
 	}
 	want := "Student|Google search|Get my $5|Finish later and go to my dashboard"
 	if strings.Join(actions, "|") != want || claimCount != 1 || finishCount != 1 {
@@ -279,8 +279,8 @@ func TestFreeAIExistingPaidDashboardDoesNotReopenSetup(t *testing.T) {
 	task := newFreeAITestTask(t)
 	task.session = &Session{client: client, sessionID: "session", targetID: "target", contextID: "context"}
 	harvest, err := NewFreeAIDriver(nil).Run(context.Background(), task)
-	if err != nil || harvest.APIKey != key {
-		t.Fatalf("harvest valid=%v error=%v", harvest.APIKey == key, err)
+	if err != nil || harvest.APIKey != key || !harvest.CreditConfirmed {
+		t.Fatalf("harvest valid=%v credited=%v error=%v", harvest.APIKey == key, harvest.CreditConfirmed, err)
 	}
 }
 

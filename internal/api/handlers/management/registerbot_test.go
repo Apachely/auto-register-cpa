@@ -1,6 +1,7 @@
 package management
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -11,11 +12,50 @@ import (
 	"testing"
 
 	"github.com/MoeForge/moego/json"
+	"github.com/gin-gonic/gin"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot"
 )
 
 const importTestKey = "sk-fixture12345678901234567890"
+
+func TestRegisterBotProxyPoolManagementContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	handler := NewHandler(&config.Config{}, configPath, nil)
+	t.Cleanup(func() {
+		if errClose := handler.CloseRegisterBot(); errClose != nil {
+			t.Error(errClose)
+		}
+	})
+
+	request := httptest.NewRequest(http.MethodPut, "/v8/management/registerbot/proxy-pool", bytes.NewBufferString(`{"mode":"enforce","max_usable_accounts_per_ip":3,"failure_cooldown_seconds":45}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+	handler.PutRegisterBotProxyPool(ctx)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("save status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var saved registerbot.ProxyPoolSnapshot
+	if errDecode := json.Unmarshal(recorder.Body.Bytes(), &saved); errDecode != nil {
+		t.Fatal(errDecode)
+	}
+	if !saved.Enabled || saved.MaxUsableAccountsPerIP != 3 || saved.FailureCooldownSeconds != 45 {
+		t.Fatalf("saved proxy pool mismatch: %+v", saved)
+	}
+
+	invalid := httptest.NewRequest(http.MethodPut, "/v8/management/registerbot/proxy-pool", bytes.NewBufferString(`{"mode":"enforce","max_usable_accounts_per_ip":4,"failure_cooldown_seconds":45}`))
+	invalid.Header.Set("Content-Type", "application/json")
+	invalidRecorder := httptest.NewRecorder()
+	invalidContext, _ := gin.CreateTestContext(invalidRecorder)
+	invalidContext.Request = invalid
+	handler.PutRegisterBotProxyPool(invalidContext)
+	if invalidRecorder.Code != http.StatusConflict || !strings.Contains(invalidRecorder.Body.String(), "proxy_pool_update_failed") {
+		t.Fatalf("invalid policy accepted: status=%d body=%s", invalidRecorder.Code, invalidRecorder.Body.String())
+	}
+}
 
 func TestRegisterBotImportPlanPreservesAndDeduplicates(t *testing.T) {
 	source := []byte(`[{"name":"FreeAi","base-url":"https://api.freeaiapikey.com/v1","prefix":"shared","opaque":{"integer":9007199254740993},"keys":[{"api-key":"existing","proxy-url":"http://127.0.0.1:12450","priority":17}]},{"name":"Other","base-url":"https://example.invalid","keys":[]}]`)

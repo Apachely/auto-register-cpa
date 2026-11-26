@@ -150,6 +150,8 @@ type Harvest struct {
 	Account              string
 	Node                 string
 	ExitIP               string
+	CreditConfirmed      bool
+	Usable               bool
 	Browser              string
 	StartedAt            time.Time
 	FinishedAt           time.Time

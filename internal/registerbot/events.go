@@ -74,6 +74,7 @@ type Counters struct {
 	Pending   int    `json:"pending_write"`
 	Target    int    `json:"target_keys,omitempty"`
 	Got       int    `json:"harvested_keys"`
+	Usable    int    `json:"usable_accounts"`
 	Stage     string `json:"stage,omitempty"`
 	Stalled   bool   `json:"stalled,omitempty"`
 	UpdatedAt int64  `json:"updated_at"`

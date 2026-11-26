@@ -24,6 +24,9 @@ type ImportError struct{ Reason string }
 
 func (e *ImportError) Error() string { return "registerbot: " + e.Reason }
 func importReason(err error) string {
+	if reason := proxyPoolReason(err); reason != "" {
+		return reason
+	}
 	var failure *ImportError
 	if errors.As(err, &failure) {
 		switch failure.Reason {
@@ -40,14 +43,18 @@ type StartRequest struct {
 }
 
 type RowView struct {
-	ID        string `json:"id"`
-	Line      int    `json:"line"`
-	Account   string `json:"account"`
-	Stage     string `json:"stage"`
-	Attempt   int    `json:"attempt"`
-	MaskedKey string `json:"masked_key,omitempty"`
-	Reason    string `json:"reason,omitempty"`
-	UpdatedAt int64  `json:"updated_at"`
+	ID              string `json:"id"`
+	Line            int    `json:"line"`
+	Account         string `json:"account"`
+	Stage           string `json:"stage"`
+	Attempt         int    `json:"attempt"`
+	MaskedKey       string `json:"masked_key,omitempty"`
+	Node            string `json:"node,omitempty"`
+	ExitIP          string `json:"exit_ip,omitempty"`
+	CreditConfirmed bool   `json:"credit_confirmed,omitempty"`
+	Usable          bool   `json:"usable,omitempty"`
+	Reason          string `json:"reason,omitempty"`
+	UpdatedAt       int64  `json:"updated_at"`
 }
 
 type RunView struct {
@@ -99,6 +106,7 @@ type Engine struct {
 	bus           *Bus
 	gateway       *Gateway
 	pool          *Pool
+	proxyPool     *ProxyPool
 	evidence      *Evidence
 	importer      ImportFunc
 	runAccount    func(context.Context, *Task, Harvest) (Harvest, error)
@@ -158,6 +166,13 @@ func NewEngine(stateDir string, settings Settings, importer ImportFunc, drivers 
 	ctx, cancel := context.WithCancel(context.Background())
 	e := &Engine{settings: settings, settingsStore: st, state: sealed, bus: bus, importer: importer, drivers: make(map[string]Driver), runs: doc.Runs, tasks: make(map[string]*Task), cancels: make(map[string]context.CancelFunc), workers: make(map[string]bool), nextStart: make(map[string]time.Time), ctx: ctx, cancel: cancel, wake: make(chan struct{})}
 	e.gateway = NewGateway(e.Settings)
+	proxyPool, errProxyPool := newProxyPool(stateDir, settings.ProxyPool, e.gateway)
+	if errProxyPool != nil {
+		cancel()
+		_ = bus.Close()
+		return nil, errProxyPool
+	}
+	e.proxyPool = proxyPool
 	e.runAccount = e.execute
 	e.pool = NewPool(e.Settings, stateDir)
 	if settings.Evidence {
@@ -183,6 +198,19 @@ func NewEngine(stateDir string, settings Settings, importer ImportFunc, drivers 
 			}
 		}
 	}
+	activeReservations := make(map[string]struct{})
+	for _, run := range e.runs {
+		for _, row := range run.Rows {
+			if !IsTerminal(row.View.Stage) {
+				activeReservations[row.View.ID] = struct{}{}
+			}
+		}
+	}
+	if errReconcile := e.proxyPool.Reconcile(activeReservations); errReconcile != nil {
+		cancel()
+		_ = bus.Close()
+		return nil, errReconcile
+	}
 	if err := e.persistLocked(); err != nil {
 		cancel()
 		_ = bus.Close()
@@ -200,6 +228,19 @@ func (e *Engine) Settings() Settings {
 func (e *Engine) Events() *Bus      { return e.bus }
 func (e *Engine) Gateway() *Gateway { return e.gateway }
 func (e *Engine) Pool() *Pool       { return e.pool }
+
+func (e *Engine) ProxyPoolSnapshot() ProxyPoolSnapshot { return e.proxyPool.Snapshot() }
+
+func (e *Engine) RefreshProxyPool(ctx context.Context) (ProxyPoolSnapshot, error) {
+	settings := e.Settings()
+	return e.proxyPool.Refresh(ctx, settings.Channels)
+}
+
+func (e *Engine) UpdateProxyPool(settings ProxyPoolSettings) error {
+	next := e.Settings()
+	next.ProxyPool = settings
+	return e.UpdateSettings(next)
+}
 
 func (e *Engine) UpdateSettings(settings Settings) error {
 	settings.Normalize()
@@ -222,6 +263,7 @@ func (e *Engine) UpdateSettings(settings Settings) error {
 		return err
 	}
 	e.settings = cloneSettings(settings)
+	e.proxyPool.Configure(settings.ProxyPool)
 	e.startWorkersLocked()
 	e.signalLocked()
 	e.bus.Emit(Event{Stage: "settings_updated", Level: "info", Message: "settings updated"})
@@ -541,6 +583,13 @@ func (e *Engine) worker(channelID string) {
 			row.View.Stage = StageDone
 			row.View.Reason = ""
 			row.View.MaskedKey = maskAPIKey(result.APIKey)
+			row.View.Node = result.Node
+			row.View.ExitIP = result.ExitIP
+			row.View.CreditConfirmed = result.CreditConfirmed
+			row.View.Usable = result.Usable
+			if !result.Usable {
+				row.View.Reason = "welcome_credit_missing"
+			}
 			row.Result = Harvest{}
 			row.Credential.Password = ""
 			e.discardTaskLocked(row.View.ID)
@@ -560,6 +609,9 @@ func (e *Engine) worker(channelID string) {
 		case result.APIKey != "":
 			row.Result = result
 			row.View.MaskedKey = maskAPIKey(result.APIKey)
+			row.View.Node = result.Node
+			row.View.ExitIP = result.ExitIP
+			row.View.CreditConfirmed = result.CreditConfirmed
 			row.View.Stage = StagePendingWrite
 			row.View.Reason = importReason(errRun)
 			row.Continue = true
@@ -568,7 +620,10 @@ func (e *Engine) worker(channelID string) {
 			row.View.Reason = "manual_action_required"
 			row.Continue = true
 		default:
-			row.View.Reason = "attempt_failed"
+			row.View.Reason = proxyPoolReason(errRun)
+			if row.View.Reason == "" {
+				row.View.Reason = "attempt_failed"
+			}
 			if row.View.Attempt < channelCopy.MaxAttempts {
 				row.View.Stage = StageQueued
 			} else {
@@ -607,18 +662,31 @@ func (e *Engine) execute(ctx context.Context, task *Task, harvest Harvest) (Harv
 			task.Report("gateway_degraded", "warning", status.Mode)
 		}
 		pinChannel := task.Channel
-		if task.session != nil && task.node != "" {
-			pinChannel.Nodes = []string{task.node}
-			pinChannel.RotateNode = false
-		}
-		pin, errPin := e.gateway.Acquire(ctx, pinChannel, task.RowID)
-		if errPin == nil {
-			defer e.gateway.Release(task.Channel.Group, task.RowID)
+		var pin PinResult
+		var errPin error
+		if e.proxyPool.Enabled() {
+			pin, errPin = e.proxyPool.Acquire(ctx, pinChannel, task.RowID)
+			if errPin == nil {
+				defer e.proxyPool.ReleaseRoute(task.Channel.Group, task.RowID)
+			}
+		} else {
+			if task.session != nil && task.node != "" {
+				pinChannel.Nodes = []string{task.node}
+				pinChannel.RotateNode = false
+			}
+			pin, errPin = e.gateway.Acquire(ctx, pinChannel, task.RowID)
+			if errPin == nil {
+				defer e.gateway.Release(task.Channel.Group, task.RowID)
+			}
 		}
 		if ctx.Err() != nil {
 			return Harvest{}, ctx.Err()
 		}
 		if errPin != nil {
+			if reason := proxyPoolReason(errPin); reason != "" {
+				task.Report(reason, "warning", reason)
+				return Harvest{}, errPin
+			}
 			task.Report("gateway_degraded", "warning", "gateway unavailable; continuing with fallback")
 		} else {
 			task.SetPinnedNode(pin.Node, pin.ExitIP)
@@ -662,6 +730,9 @@ func (e *Engine) execute(ctx context.Context, task *Task, harvest Harvest) (Harv
 				if row.View.ID == task.RowID {
 					row.Result = harvest
 					row.View.MaskedKey = maskAPIKey(harvest.APIKey)
+					row.View.Node = harvest.Node
+					row.View.ExitIP = harvest.ExitIP
+					row.View.CreditConfirmed = harvest.CreditConfirmed
 					break
 				}
 			}
@@ -672,11 +743,27 @@ func (e *Engine) execute(ctx context.Context, task *Task, harvest Harvest) (Harv
 			return harvest, errSave
 		}
 	} else {
-		// Imported manual keys and pending writes follow the same forwarding
-		// fallback as registration; an unavailable proxy must not strand a key.
+		// Pending harvested keys reacquire their reserved route. Manually supplied
+		// keys have no reservation and retain the existing gateway fallback.
 		status := e.gateway.Probe(ctx, false)
 		if status.Mode != GatewayModeController {
 			task.Report("gateway_degraded", "warning", status.Mode)
+		}
+		if e.proxyPool.HasReservation(task.RowID) {
+			pin, errPin := e.proxyPool.Acquire(ctx, task.Channel, task.RowID)
+			if errPin != nil {
+				if ctx.Err() != nil {
+					return harvest, ctx.Err()
+				}
+				reason := proxyPoolReason(errPin)
+				if reason == "" {
+					reason = "proxy_pool_unavailable"
+				}
+				task.Report(reason, "warning", reason)
+				return harvest, errPin
+			}
+			defer e.proxyPool.ReleaseRoute(task.Channel.Group, task.RowID)
+			task.SetPinnedNode(pin.Node, pin.ExitIP)
 		}
 		harvest.VerificationProxyURL = e.gateway.EffectiveProxyURL()
 	}
@@ -691,6 +778,20 @@ func (e *Engine) execute(ctx context.Context, task *Task, harvest Harvest) (Harv
 		return harvest, errImport
 	}
 	task.Report(StageWritingKey, "info", "key_verified_imported")
+	if e.proxyPool.HasReservation(task.RowID) {
+		usable, errComplete := e.proxyPool.Complete(task.RowID, harvest)
+		if errComplete != nil {
+			return harvest, errComplete
+		}
+		harvest.Usable = usable
+	} else {
+		harvest.Usable = harvest.CreditConfirmed && harvest.APIKey != ""
+	}
+	if harvest.Usable {
+		task.Report("account_usable", "info", "account_usable")
+	} else {
+		task.Report("welcome_credit_missing", "warning", "welcome_credit_missing")
+	}
 	return harvest, nil
 }
 
@@ -755,6 +856,9 @@ func (e *Engine) countersLocked(run *queueRun) Counters {
 		if row.Result.APIKey != "" || row.View.Stage == StageDone {
 			c.Got++
 		}
+		if row.View.Usable {
+			c.Usable++
+		}
 	}
 	c.Stalled = c.Waiting > 0 || c.Pending > 0
 	return c
@@ -811,6 +915,11 @@ func maskAPIKey(key string) string {
 }
 
 func (e *Engine) discardTaskLocked(rowID string) {
+	if e.proxyPool != nil {
+		if errAbandon := e.proxyPool.Abandon(rowID); errAbandon != nil {
+			log.WithField("component", "registerbot").Warn("proxy pool reservation cleanup failed")
+		}
+	}
 	task := e.tasks[rowID]
 	delete(e.tasks, rowID)
 	if task == nil || task.session == nil {

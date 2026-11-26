@@ -215,7 +215,7 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 				}
 				task.Report("onboarding_complete", "info", message)
 			}
-			return Harvest{APIKey: page.Key, Account: task.Account.Email, Node: task.node, ExitIP: task.exitIP, Browser: task.browserLabel(), StartedAt: started, FinishedAt: time.Now()}, nil
+			return Harvest{APIKey: page.Key, Account: task.Account.Email, Node: task.node, ExitIP: task.exitIP, CreditConfirmed: creditConfirmed, Browser: task.browserLabel(), StartedAt: started, FinishedAt: time.Now()}, nil
 		}
 		if page.Action == "invalid_credentials" {
 			return harvest, errors.New("registerbot: Google rejected the supplied account credentials")

@@ -27,6 +27,7 @@ func testSettings() Settings {
 	settings.Gateway.ControllerURL = "http://127.0.0.1:1"
 	settings.Gateway.AutoDiscover = false
 	settings.Gateway.VerifyExitIP = false
+	settings.ProxyPool.Mode = ProxyPoolModeDisabled
 	return settings
 }
 
@@ -110,6 +111,28 @@ func TestEngineManualQueueImportAndRedaction(t *testing.T) {
 	}
 	if bytes.Contains(journal, []byte(testAPIKey)) || bytes.Contains(journal, []byte("sensitive-pass")) {
 		t.Fatal("journal leaked credentials")
+	}
+}
+
+func TestEnginePublishesUsableAccountAndRouteMetadata(t *testing.T) {
+	e := newTestEngine(t, testSettings(), nil)
+	e.runAccount = func(_ context.Context, task *Task, _ Harvest) (Harvest, error) {
+		return Harvest{
+			APIKey: testAPIKey, Node: "node-a", ExitIP: "203.0.113.30",
+			CreditConfirmed: true, Usable: true,
+		}, nil
+	}
+	run, errStart := e.Start(StartRequest{Channel: "freeaiapikey", Accounts: "usable@example.invalid|pw"})
+	if errStart != nil {
+		t.Fatal(errStart)
+	}
+	done := awaitRun(t, e, run.ID, func(view RunView) bool { return view.Status == "done" })
+	if done.Counters.Usable != 1 || len(done.Rows) != 1 {
+		t.Fatalf("usable counter missing: %+v", done)
+	}
+	row := done.Rows[0]
+	if !row.Usable || !row.CreditConfirmed || row.Node != "node-a" || row.ExitIP != "203.0.113.30" {
+		t.Fatalf("route metadata missing: %+v", row)
 	}
 }
 

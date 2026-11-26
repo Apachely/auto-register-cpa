@@ -50,11 +50,27 @@ type Settings struct {
 	StateDir string `yaml:"state-dir,omitempty" json:"state_dir,omitempty"`
 	Evidence bool   `yaml:"capture-evidence,omitempty" json:"capture_evidence,omitempty"`
 
-	Gateway  GatewaySettings   `yaml:"gateway,omitempty" json:"gateway,omitempty"`
-	Browser  BrowserSettings   `yaml:"browser,omitempty" json:"browser,omitempty"`
-	Import   ImportSettings    `yaml:"import,omitempty" json:"import,omitempty"`
-	Channels []ChannelSettings `yaml:"channels,omitempty" json:"channels,omitempty"`
+	Gateway   GatewaySettings   `yaml:"gateway,omitempty" json:"gateway,omitempty"`
+	ProxyPool ProxyPoolSettings `yaml:"proxy-pool,omitempty" json:"proxy_pool,omitempty"`
+	Browser   BrowserSettings   `yaml:"browser,omitempty" json:"browser,omitempty"`
+	Import    ImportSettings    `yaml:"import,omitempty" json:"import,omitempty"`
+	Channels  []ChannelSettings `yaml:"channels,omitempty" json:"channels,omitempty"`
 }
+
+const (
+	ProxyPoolModeDisabled = "disabled"
+	ProxyPoolModeEnforce  = "enforce"
+)
+
+// ProxyPoolSettings controls the registration-specific scheduler above the
+// existing gateway. It never creates a second forwarding path.
+type ProxyPoolSettings struct {
+	Mode                   string `yaml:"mode,omitempty" json:"mode,omitempty"`
+	MaxUsableAccountsPerIP int    `yaml:"max-usable-accounts-per-ip,omitempty" json:"max_usable_accounts_per_ip,omitempty"`
+	FailureCooldownSeconds int    `yaml:"failure-cooldown-seconds,omitempty" json:"failure_cooldown_seconds,omitempty"`
+}
+
+func (p ProxyPoolSettings) Enabled() bool { return p.Mode == ProxyPoolModeEnforce }
 
 // GatewaySettings describes the local proxy gateway layer.
 type GatewaySettings struct {
@@ -232,6 +248,11 @@ func DefaultSettings() Settings {
 			CircuitThreshold:       3,
 			CircuitCooldownSeconds: 60,
 		},
+		ProxyPool: ProxyPoolSettings{
+			Mode:                   ProxyPoolModeEnforce,
+			MaxUsableAccountsPerIP: 3,
+			FailureCooldownSeconds: 60,
+		},
 		Browser: BrowserSettings{
 			Mode:                  BrowserModeEmbedded,
 			PoolSize:              2,
@@ -308,6 +329,15 @@ func (s *Settings) Normalize() {
 	}
 	if s.Gateway.CircuitCooldownSeconds == 0 {
 		s.Gateway.CircuitCooldownSeconds = def.Gateway.CircuitCooldownSeconds
+	}
+	if s.ProxyPool.Mode == "" {
+		s.ProxyPool.Mode = def.ProxyPool.Mode
+	}
+	if s.ProxyPool.MaxUsableAccountsPerIP == 0 {
+		s.ProxyPool.MaxUsableAccountsPerIP = def.ProxyPool.MaxUsableAccountsPerIP
+	}
+	if s.ProxyPool.FailureCooldownSeconds == 0 {
+		s.ProxyPool.FailureCooldownSeconds = def.ProxyPool.FailureCooldownSeconds
 	}
 	if s.Browser.Mode == "" {
 		s.Browser.Mode = def.Browser.Mode
@@ -533,6 +563,20 @@ func validateSettings(s *Settings) error {
 	case ShareModeLease, ShareModePerChannel, ShareModeShared:
 	default:
 		return fmt.Errorf("registerbot: unknown gateway share mode %q", s.Gateway.ShareMode)
+	}
+	switch s.ProxyPool.Mode {
+	case ProxyPoolModeDisabled, ProxyPoolModeEnforce:
+	default:
+		return fmt.Errorf("registerbot: unknown proxy pool mode %q", s.ProxyPool.Mode)
+	}
+	if s.ProxyPool.MaxUsableAccountsPerIP < 1 || s.ProxyPool.MaxUsableAccountsPerIP > 3 {
+		return errors.New("registerbot: proxy pool per-IP usable-account limit must be between 1 and 3")
+	}
+	if s.ProxyPool.FailureCooldownSeconds < 1 || s.ProxyPool.FailureCooldownSeconds > 3600 {
+		return errors.New("registerbot: proxy pool failure cooldown must be between 1 and 3600 seconds")
+	}
+	if s.ProxyPool.Enabled() && (!s.Gateway.VerifyExitIP || strings.TrimSpace(s.Gateway.ExitIPURL) == "") {
+		return errors.New("registerbot: enforced proxy pool requires gateway exit-IP verification")
 	}
 	switch s.Browser.Mode {
 	case BrowserModeEmbedded, BrowserModeAttach, BrowserModeSystem, BrowserModeManual:

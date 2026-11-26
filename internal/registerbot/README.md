@@ -38,6 +38,7 @@ persisted `state-dir` setting.
 | `queue.enc` | AES-256-GCM encrypted queue credentials and pending captured keys |
 | `state.key` | Encryption key; protected with current-user DPAPI on Windows |
 | `events.jsonl` | Bounded, sanitized progress journal and replay sequence numbers |
+| `proxy-pool.json` | Gateway node observations, exit-IP quota counts and resumable reservations |
 | `profiles/`, `browser-*.json`, `browser-*.pid` | Managed Chrome profiles and ownership records |
 | `evidence/` | Sanitized metadata when evidence capture is explicitly requested |
 
@@ -55,6 +56,24 @@ accounts and key hints. Raw authentication pages and screenshots are not written
 by the evidence helper.
 
 ## Gateway and browser behavior
+
+The registration proxy pool is a scheduler and quota ledger above the existing
+gateway, not a second forwarding service. It discovers selectable nodes from the
+configured controller, pins one node through the same gateway, verifies the
+observed exit IP, and reserves that exit for one account. Consecutive accounts
+must use both a different node and a different observed exit. Nodes that resolve
+to the previous exit, cannot be verified, or map to a full IP enter a bounded
+cooldown. The browser, welcome-credit flow, key verification, and provider write
+continue to use the gateway forwarding URL and its existing fallback policy.
+
+`proxy-pool.json` contains no account passwords or API keys. A quota entry is
+committed only after the driver observed the $5 welcome credit and the importer
+completed authenticated API-key verification plus confirmed CPA configuration
+writeback. An imported key without confirmed welcome credit remains completed
+but is not a usable account and does not consume the per-IP quota. The maximum is
+hard-bounded to three usable accounts per exit IP.
+See [PROXY_POOL.md](PROXY_POOL.md) for the derived requirements, transaction
+boundaries, and verification coverage.
 
 The FreeAI completion path is: select the configured survey answers, click
 `Get my $5` once, observe the provider's saved-survey confirmation, click
@@ -148,6 +167,10 @@ gateway:
   exit-ip-url: https://api.ipify.org?format=json
   pin-timeout-seconds: 20
   probe-timeout-seconds: 5
+proxy-pool:
+  mode: enforce
+  max-usable-accounts-per-ip: 3
+  failure-cooldown-seconds: 60
 browser:
   mode: embedded
   pool-size: 2
@@ -193,6 +216,9 @@ management authentication. No credentials belong in an event-stream URL.
 | `POST /runs/:run/keys` | `{ "row_id": "...", "key": "..." }` |
 | `GET /gateway` | Last measured gateway status; no live probe |
 | `POST /gateway/probe` | Refresh gateway state |
+| `GET /proxy-pool` | Proxy pool policy, node health and per-IP quota snapshot |
+| `PUT /proxy-pool` | Replace proxy pool mode, per-IP limit and failure cooldown |
+| `POST /proxy-pool/refresh` | Refresh selectable gateway nodes without registering an account |
 | `GET /events?after=N&channel=ID` | Authenticated SSE; channel filter is optional |
 
 SSE subscriptions capture replay and live subscription atomically. Entries use
