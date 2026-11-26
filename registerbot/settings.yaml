@@ -11,6 +11,10 @@ gateway:
     probe-timeout-seconds: 5
     circuit-threshold: 3
     circuit-cooldown-seconds: 60
+proxy-pool:
+    mode: enforce
+    max-usable-accounts-per-ip: 3
+    failure-cooldown-seconds: 60
 browser:
     mode: embedded
     chrome-paths:
@@ -34,11 +38,10 @@ channels:
       enabled: true
       provider: FreeAi
       proxy-url: http://127.0.0.1:12450
-      concurrency: 2
+      concurrency: 1
       group: 节点选择
-      nodes:
-        - "\U0001F1ED\U0001F1F0|香港-IEPL 02"
-      interval-seconds: 2
+      rotate-node: true
+      interval-seconds: 5
       step-delay-millis: 900
       max-attempts: 2
       onboarding-role: student
