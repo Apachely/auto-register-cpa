@@ -67,6 +67,7 @@ type Handler struct {
 	v8AuthUploadMu          sync.Mutex
 	pluginLoginSaveMu       sync.Mutex
 	registerBotMu           sync.Mutex
+	registerBotCommitMu     sync.Mutex
 	registerBot             *registerbot.Engine
 	registerBotClosed       bool
 }

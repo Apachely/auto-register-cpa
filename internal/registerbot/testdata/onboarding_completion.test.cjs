@@ -47,6 +47,7 @@ const cases = [
   ['survey_before_claim', '/setup', 'Step 1 of 5\nNormal $0.00 · Bonus $0.00\n+$5.00', [element('form', {id: 'surveyForm'}), finishLink()], 'onboarding_profile', false, false],
   ['survey_credit_success', '/setup', 'Step 1 of 5\nNormal $5.00\n$5.00 is in your balance.', [element('div', {id: 'surveyDone'}), finishLink()], 'onboarding_credit', true, false],
   ['credit_success_before_wallet_refresh', '/setup', 'Step 1 of 5\nNormal $0.00\n$5.00 is in your balance.', [element('div', {id: 'surveyDone'}), finishLink()], 'onboarding_credit', true, false],
+  ['survey_saved_without_welcome_credit', '/setup', 'Step 1 of 5\nNormal $0.00\nThanks, your answers are saved. This account starts at $0.', [element('div', {id: 'surveyDone'}), finishLink()], 'onboarding_credit', false, false],
   ['resume_optional_tutorial', '/setup', 'Step 3 of 5\nNormal $5.00', [finishLink()], 'onboarding_credit', true, false],
   ['paid_dashboard_with_setup_banner', '/dashboard', 'NORMAL CREDITS\n\n$5.00\nDefault Key', [setupLink(), keyRow()], 'key', true, true],
   ['unpaid_dashboard', '/dashboard', 'NORMAL CREDITS\n$0.00\nDefault Key', [setupLink(), keyRow()], 'onboarding_entry', false, true],

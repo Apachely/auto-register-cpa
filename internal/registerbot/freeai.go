@@ -51,6 +51,7 @@ type freeAIPage struct {
 	NetworkCode     string `json:"network_code"`
 	HumanChallenge  bool   `json:"human_challenge"`
 	CreditConfirmed bool   `json:"credit_confirmed"`
+	SurveyCompleted bool   `json:"survey_completed"`
 }
 
 func normalizeFreeAIPage(page freeAIPage) freeAIPage {
@@ -145,6 +146,7 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 	var lastDispatch time.Time
 	lastActionIssue := ""
 	sawOnboarding, creditConfirmed := false, false
+	surveyCompleted := false
 	claimAttempted := false
 	ticker := time.NewTicker(700 * time.Millisecond)
 	defer ticker.Stop()
@@ -173,9 +175,10 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 		}
 		page = normalizeFreeAIPage(page)
 		creditConfirmed = creditConfirmed || page.CreditConfirmed
+		surveyCompleted = surveyCompleted || page.SurveyCompleted || page.CreditConfirmed
 		// The dashboard keeps its optional setup banner after Finish later. A
 		// confirmed survey must not send this same session back into that guide.
-		if page.Action == "onboarding_entry" && creditConfirmed && page.Key != "" {
+		if page.Action == "onboarding_entry" && surveyCompleted && page.Key != "" {
 			page.Action = "key"
 		}
 		if strings.HasPrefix(page.Action, "onboarding_") {
@@ -202,11 +205,15 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 		}
 		if page.Action == "key" && freeAIHost(page.URL) && keyPattern.MatchString(page.Key) {
 			if sawOnboarding {
-				if !creditConfirmed {
-					task.Report("onboarding_credit_pending", "warn", "onboarding credit was not confirmed; complete the guide before import")
+				if !surveyCompleted {
+					task.Report("onboarding_profile_required", "warn", "survey completion was not confirmed; retain the guide before capture")
 					return harvest, ErrManualHandoff
 				}
-				task.Report("onboarding_complete", "info", "onboarding completed and initial $5 credit confirmed")
+				message := "required survey completed; full Default Key captured"
+				if !creditConfirmed {
+					message = "required survey completed; provider did not award welcome credit; full Default Key captured"
+				}
+				task.Report("onboarding_complete", "info", message)
 			}
 			return Harvest{APIKey: page.Key, Account: task.Account.Email, Node: task.node, ExitIP: task.exitIP, Browser: task.browserLabel(), StartedAt: started, FinishedAt: time.Now()}, nil
 		}
@@ -246,8 +253,8 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 					}
 				}
 			case "onboarding_credit", "onboarding_tool", "onboarding_test", "onboarding_discord", "onboarding_plans":
-				if !creditConfirmed {
-					task.Report("onboarding_credit_pending", "warn", "initial $5 credit has not been confirmed; retain the survey before import")
+				if !surveyCompleted {
+					task.Report("onboarding_profile_required", "warn", "survey completion has not been confirmed; retain the survey before capture")
 					return harvest, ErrManualHandoff
 				}
 				errAction = session.ClickText(acquireCtx, "Finish later and go to my dashboard", "Open my dashboard")
@@ -319,6 +326,12 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			}
 		}
 		if time.Since(lastProgress) >= set.Browser.StepTimeout() {
+			if googleIdentityHost(page.URL) && !page.HumanChallenge && page.Action != "blocked" && page.Action != "challenge" {
+				// A stalled ordinary sign-in page is not an identity challenge.
+				// Close this context and let the queue's bounded retry policy run.
+				task.Report(page.Action, "warn", "sign-in page timed out; restarting this account automatically")
+				return harvest, errors.New("registerbot: ordinary sign-in page timed out")
+			}
 			task.Report("manual", "warn", "page did not advance; retained browser is ready for operator continuation")
 			return harvest, ErrManualHandoff
 		}
@@ -345,7 +358,7 @@ func freeAIStageMessage(stage string) string {
 	case "onboarding_profile":
 		return "completing the configured onboarding survey"
 	case "onboarding_credit":
-		return "initial $5 credit confirmed; finishing the guide later and opening the dashboard"
+		return "survey response confirmed; finishing the guide later and opening the dashboard"
 	case "onboarding_tool":
 		return "reviewing tool connection instructions"
 	case "onboarding_test":
@@ -390,7 +403,7 @@ const freeAIInspectScript = `(function(){
  var has=function(s){return Array.from(document.querySelectorAll(s)).some(visible);};
  var bodyText=document.body?document.body.innerText:'';
  var text=bodyText.toLowerCase();
- var host=location.hostname, path=location.pathname, action='loading', key='', networkCode='', creditConfirmed=false;
+ var host=location.hostname, path=location.pathname, action='loading', key='', networkCode='', creditConfirmed=false, surveyCompleted=false;
  var humanChallenge=has('iframe[src*="recaptcha"],input[name=totpPin],input[name=idvPin]')||text.includes('verify it’s you')||text.includes("verify it's you")||text.includes('2-step verification');
  var networkMatch=bodyText.match(/\bERR_[A-Z_]+\b/);
  var chromeError=location.protocol==='chrome-error:'||location.origin==='null'||has('#main-frame-error,.neterror');
@@ -413,7 +426,8 @@ const freeAIInspectScript = `(function(){
   if(path==='/setup'||path.startsWith('/setup/')){
    var step=(bodyText.match(/\bStep\s*([1-5])\s*of\s*5\b/i)||[])[1];
    creditConfirmed=creditConfirmed||(has('#surveyDone')&&text.includes('$5.00 is in your balance.'));
-   if(creditConfirmed){action='onboarding_credit';}
+   surveyCompleted=creditConfirmed||(has('#surveyDone')&&text.includes('your answers are saved'));
+   if(surveyCompleted){action='onboarding_credit';}
    else if(has('#surveySubmit')||has('#surveyForm')||step==='1'){action='onboarding_profile';}
    else if(step==='2'){action='onboarding_tool';}
    else if(step==='3'){action='onboarding_test';}
@@ -447,5 +461,5 @@ const freeAIInspectScript = `(function(){
  // query strings, disabled states and transient loading indicators.
  var signature=Array.from(document.querySelectorAll('h1,h2,[role="heading"],button,[role="button"],input[type="submit"]')).filter(visible).map(function(el){return String(el.innerText||el.value||el.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim().toLowerCase();}).join('|');
  var hash=2166136261;for(var s=0;s<signature.length;s++){hash=Math.imul(hash^signature.charCodeAt(s),16777619);}
- return {url:location.href,action:action,page_state:(hash>>>0).toString(16),key:key,network_code:networkCode,human_challenge:humanChallenge,credit_confirmed:creditConfirmed};
+ return {url:location.href,action:action,page_state:(hash>>>0).toString(16),key:key,network_code:networkCode,human_challenge:humanChallenge,credit_confirmed:creditConfirmed,survey_completed:surveyCompleted};
 })()`

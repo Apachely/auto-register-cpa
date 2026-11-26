@@ -267,11 +267,7 @@ func (h *Handler) importRegisterBotKey(ctx context.Context, channel registerbot.
 	if errRead != nil || snapshot.status != http.StatusOK {
 		return errors.New("registerbot: provider configuration unavailable")
 	}
-	etag := snapshot.header.Get("ETag")
-	if len(etag) != 66 || etag[0] != '"' || etag[65] != '"' {
-		return errors.New("registerbot: provider configuration ETag missing")
-	}
-	body, endpoint, present, errPlan := registerBotImportPlan(snapshot.body.Bytes(), channel, harvest.APIKey)
+	_, endpoint, _, errPlan := registerBotImportPlan(snapshot.body.Bytes(), channel, harvest.APIKey)
 	if errPlan != nil {
 		return errPlan
 	}
@@ -284,8 +280,32 @@ func (h *Handler) importRegisterBotKey(ctx context.Context, channel registerbot.
 	if errVerify := verifyRegisterBotKey(ctx, endpoint, channel.ProxyURL, harvest.APIKey, model); errVerify != nil {
 		return errVerify
 	}
+	return h.commitRegisterBotKey(ctx, channel, harvest.APIKey, endpoint, model)
+}
+
+// Network verification stays parallel. Only the fresh read/merge/CAS/readback
+// transaction is serialized, so concurrent keys cannot overwrite one another.
+func (h *Handler) commitRegisterBotKey(ctx context.Context, channel registerbot.ChannelSettings, key, verifiedEndpoint string, verifiedModel registerBotProbeModel) error {
+	h.registerBotCommitMu.Lock()
+	defer h.registerBotCommitMu.Unlock()
 	if errContext := ctx.Err(); errContext != nil {
 		return errContext
+	}
+	snapshot, errRead := h.registerBotConfigRequest(ctx, http.MethodGet, nil, "")
+	if errRead != nil || snapshot.status != http.StatusOK {
+		return errors.New("registerbot: provider configuration unavailable")
+	}
+	etag := snapshot.header.Get("ETag")
+	if len(etag) != 66 || etag[0] != '"' || etag[65] != '"' {
+		return errors.New("registerbot: provider configuration ETag missing")
+	}
+	body, endpoint, present, errPlan := registerBotImportPlan(snapshot.body.Bytes(), channel, key)
+	if errPlan != nil {
+		return errPlan
+	}
+	model, errModel := registerBotVerificationModel(snapshot.body.Bytes(), channel)
+	if errModel != nil || model != verifiedModel || endpoint != verifiedEndpoint {
+		return errors.New("registerbot: provider configuration conflict after key verification")
 	}
 	if !present {
 		response, errWrite := h.registerBotConfigRequest(ctx, http.MethodPut, body, etag)
@@ -305,7 +325,7 @@ func (h *Handler) importRegisterBotKey(ctx context.Context, channel registerbot.
 	if errConfirm != nil || confirmation.status != http.StatusOK {
 		return errors.New("registerbot: provider readback failed")
 	}
-	_, confirmedEndpoint, confirmed, errPlan := registerBotImportPlan(confirmation.body.Bytes(), channel, harvest.APIKey)
+	_, confirmedEndpoint, confirmed, errPlan := registerBotImportPlan(confirmation.body.Bytes(), channel, key)
 	if errPlan != nil || !confirmed || confirmedEndpoint != endpoint {
 		return errors.New("registerbot: provider write unconfirmed")
 	}

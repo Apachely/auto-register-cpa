@@ -32,6 +32,9 @@ type Gateway struct {
 	mu            sync.Mutex
 	proxyClient   *http.Client
 	leaseChanged  chan struct{}
+	leaseRoute    string
+	leaseReady    bool
+	leaseResult   PinResult
 	rotation      map[string]int
 	controllerURL string
 	controllerAt  time.Time
@@ -40,7 +43,7 @@ type Gateway struct {
 	checkedAt     time.Time
 	lastStatus    Status
 	groups        map[string]Group
-	leases        map[string]lease  // group|node -> holder
+	leases        map[string]lease  // group|holder -> active account
 	pinState      map[string]string // group -> node pinned by this process
 }
 
@@ -578,25 +581,48 @@ func containsNode(nodes []string, want string) bool {
 	return false
 }
 
-// Acquire pins a node for a channel, honouring the configured share mode.
-//
-// lease: one node per channel at a time, serialised per group.
-// per_channel: every channel keeps its own group, no contention.
-// shared: all channels accept the same pinned node.
+// Acquire shares an already confirmed fixed route across concurrent accounts.
+// Route changes remain exclusive: a single forwarding port cannot use two
+// selected nodes simultaneously, regardless of the configured share-mode label.
 func (g *Gateway) Acquire(ctx context.Context, channel ChannelSettings, holder string) (PinResult, error) {
 	set := g.snapshotSettings()
 	if channel.ManualMode || !set.Enabled {
 		return PinResult{Mode: g.Mode(), Degraded: "gateway skipped by channel settings"}, nil
 	}
-	// A single forwarding port cannot promise simultaneous per-channel exits.
-	// Hold an exclusive selector lease for the complete credential transaction.
 	key := channel.Group + "|" + holder
+	var mode, route string
+	var pool []string
 	for {
+		if errContext := ctx.Err(); errContext != nil {
+			return PinResult{}, errContext
+		}
+		mode, pool = g.Mode(), g.NodePool(channel)
+		route = ""
+		if mode != GatewayModeController {
+			route = "forwarding:" + g.ProxyURL()
+		} else if !channel.RotateNode {
+			node := "<current>"
+			if len(pool) > 0 {
+				node = pool[0]
+			}
+			route = channel.Group + "\x00" + node
+		}
 		g.mu.Lock()
+		if g.mode != mode {
+			g.mu.Unlock()
+			continue
+		}
 		if len(g.leases) == 0 {
 			g.leases[key] = lease{channel: channel.ID, at: time.Now()}
+			g.leaseRoute, g.leaseReady = route, false
 			g.mu.Unlock()
 			break
+		}
+		if route != "" && route == g.leaseRoute && g.leaseReady {
+			g.leases[key] = lease{channel: channel.ID, at: time.Now()}
+			result := g.leaseResult
+			g.mu.Unlock()
+			return result, nil
 		}
 		changed := g.leaseChanged
 		g.mu.Unlock()
@@ -606,25 +632,36 @@ func (g *Gateway) Acquire(ctx context.Context, channel ChannelSettings, holder s
 		case <-changed:
 		}
 	}
-	if g.Mode() != GatewayModeController {
-		return PinResult{Mode: g.Mode(), Degraded: "controller unavailable; no exclusive exit guarantee"}, nil
+	finish := func(result PinResult, errPin error) (PinResult, error) {
+		if errPin != nil {
+			g.Release(channel.Group, holder)
+			return result, errPin
+		}
+		g.mu.Lock()
+		g.leaseResult, g.leaseReady = result, true
+		close(g.leaseChanged)
+		g.leaseChanged = make(chan struct{})
+		g.mu.Unlock()
+		return result, nil
 	}
-	pool := g.NodePool(channel)
+	if mode != GatewayModeController {
+		return finish(PinResult{Mode: mode, Degraded: "controller unavailable; shared forwarding retained"}, nil)
+	}
 	if len(pool) == 0 {
-		return PinResult{Group: channel.Group, Mode: g.Mode(), Degraded: "no selectable nodes; current proxy route retained"}, nil
+		return finish(PinResult{Group: channel.Group, Mode: mode, Degraded: "no selectable nodes; current proxy route retained"}, nil)
 	}
 	g.mu.Lock()
-	index := g.rotation[channel.ID]
+	index := 0
+	if channel.RotateNode {
+		index = g.rotation[channel.ID]
+	}
 	chosen := pool[index%len(pool)]
 	if channel.RotateNode {
 		g.rotation[channel.ID] = index + 1
 	}
 	g.mu.Unlock()
 	result, errPin := g.Pin(ctx, channel.Group, chosen)
-	if errPin != nil {
-		g.Release(channel.Group, holder)
-	}
-	return result, errPin
+	return finish(result, errPin)
 }
 
 // Release keeps the selected exit stable until every operation of the task ends.
@@ -634,6 +671,10 @@ func (g *Gateway) Release(group, holder string) {
 	key := group + "|" + holder
 	if _, exists := g.leases[key]; exists {
 		delete(g.leases, key)
+		if len(g.leases) == 0 {
+			g.leaseReady = false
+			g.leaseRoute = ""
+		}
 		close(g.leaseChanged)
 		g.leaseChanged = make(chan struct{})
 	}

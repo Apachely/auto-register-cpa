@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/MoeForge/moego/json"
@@ -179,4 +180,65 @@ func TestRegisterBotVerificationReasoningAtTokenLimit(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRegisterBotConcurrentVerifiedKeysMergeWithoutLoss(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	raw := "config-version: 8\nserver: {port: 8317}\napi-keys:\n  openai-compatibility:\n    - name: FreeAi\n      base-url: https://api.freeaiapikey.com/v1\n      models: [{name: fixture-model}]\n      keys: []\n"
+	if errWrite := os.WriteFile(path, []byte(raw), 0600); errWrite != nil {
+		t.Fatal(errWrite)
+	}
+	cfg, errLoad := config.LoadConfig(path)
+	if errLoad != nil {
+		t.Fatal(errLoad)
+	}
+	h := &Handler{cfg: cfg, configFilePath: path}
+	channel := registerbot.DefaultFreeAIChannel()
+	start := make(chan struct{})
+	errors := make(chan error, 8)
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			<-start
+			// Two workers per key also exercise idempotent concurrent deduplication.
+			key := "sk-" + strings.Repeat(string(rune('A'+index%4)), 43)
+			errors <- h.commitRegisterBotKey(context.Background(), channel, key, "https://api.freeaiapikey.com/v1/chat/completions", registerBotProbeModel{Name: "fixture-model"})
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	close(errors)
+	for errCommit := range errors {
+		if errCommit != nil {
+			t.Fatal(errCommit)
+		}
+	}
+	response, errRead := h.registerBotConfigRequest(context.Background(), http.MethodGet, nil, "")
+	if errRead != nil {
+		t.Fatal(errRead)
+	}
+	var groups []registerBotProvider
+	if errDecode := json.Unmarshal(response.body.Bytes(), &groups); errDecode != nil {
+		t.Fatal(errDecode)
+	}
+	if len(groups) != 1 || len(groups[0].Keys) != 4 {
+		t.Fatal("concurrent verified key writes lost or duplicated a key")
+	}
+	for _, key := range groups[0].Keys {
+		if key.Proxy != channel.ProxyURL {
+			t.Fatal("proxy was not preserved")
+		}
+	}
+	before, errBefore := os.ReadFile(path)
+	if errBefore != nil {
+		t.Fatal(errBefore)
+	}
+	errDrift := h.commitRegisterBotKey(context.Background(), channel, importTestKey, "https://api.freeaiapikey.com/v1/chat/completions", registerBotProbeModel{Name: "changed-model"})
+	after, errAfter := os.ReadFile(path)
+	if errDrift == nil || errAfter != nil || string(before) != string(after) {
+		t.Fatal("changed verification contract was written")
+	}
+	t.Log("8 concurrent commits -> 4 unique keys; no lost writes; proxy and verification contract preserved")
 }

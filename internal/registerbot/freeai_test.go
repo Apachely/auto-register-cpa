@@ -283,3 +283,25 @@ func TestFreeAIExistingPaidDashboardDoesNotReopenSetup(t *testing.T) {
 		t.Fatalf("harvest valid=%v error=%v", harvest.APIKey == key, err)
 	}
 }
+
+func TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff(t *testing.T) {
+	client := newFreeAITestCDP(t, func(request cdpMessage) map[string]any {
+		if request.Method == "Runtime.evaluate" {
+			if request.Params["expression"] == freeAIInspectScript {
+				return map[string]any{"result": map[string]any{"value": freeAIPage{URL: "https://accounts.google.com/v3/signin/identifier", Action: "email"}}}
+			}
+			return map[string]any{"result": map[string]any{"value": false}}
+		}
+		return map[string]any{}
+	})
+	task := newFreeAITestTask(t)
+	task.session = &Session{client: client, sessionID: "session", targetID: "target", contextID: "context"}
+	settings := DefaultSettings()
+	settings.Browser.StepTimeoutSeconds = 1
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_, errRun := NewFreeAIDriver(func() Settings { return settings }).Run(ctx, task)
+	if errRun == nil || errors.Is(errRun, ErrManualHandoff) || task.session != nil {
+		t.Fatalf("ordinary timeout did not close and retry: %v", errRun)
+	}
+}

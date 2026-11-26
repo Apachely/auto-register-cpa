@@ -57,7 +57,7 @@ by the evidence helper.
 ## Gateway and browser behavior
 
 The FreeAI completion path is: select the configured survey answers, click
-`Get my $5` once, observe credit confirmation, click
+`Get my $5` once, observe the provider's saved-survey confirmation, click
 `Finish later and go to my dashboard`, and capture the complete `Default Key`.
 The defaults are `onboarding-role: student` and `onboarding-source: google`,
 including old persisted channels where those fields are empty. The fields remain
@@ -69,12 +69,21 @@ waits within the acquisition deadline, recognizes the actual submit control
 even when the form uses `display: contents`, and reads back both checked radio
 states before submitting. A transient unknown setup state is not an immediate
 manual handoff.
+Ordinary Google sign-in page timeouts close the stalled context and use the
+queue's bounded account retry policy. Explicit CAPTCHA/MFA/security challenges
+still preserve the account's manual checkpoint; they are not bypassed.
+
+Survey completion is separate from welcome-credit eligibility. When the provider
+says the answers are saved but no reward is available, the driver records that
+outcome and still follows Finish later to capture the Default Key. It never
+changes routes or retries a reward claim to evade eligibility restrictions.
+Model usability remains subject to the provider's actual balance and quotas.
 
 The optional coding-tool, test, Discord and plan tutorials are not required.
 The dashboard keeps its `Finish setup` banner after Finish later: confirmed
-credit plus the Default Key takes precedence over that banner, including on
+survey completion plus the Default Key takes precedence over that banner, including on
 resume. A changed submit label or DOM redraw never authorizes a second credit
-claim. Unconfirmed credit or an unrecognized page retains manual recovery.
+claim. An unconfirmed survey or an unrecognized page retains bounded recovery.
 `skip-optional-discord` remains a compatible stored setting but the fast path
 does not enter the Discord tutorial.
 
@@ -95,14 +104,20 @@ Controller failure keeps forwarding through the proxy. Forwarding failure select
 direct connections. Manual keys and pending imports are probed again before
 verification, so they also use this fallback and can recover a restored proxy.
 
-A single Clash-compatible forwarding port has global selector state. The gateway
-therefore holds **one exclusive selector lease across all channels** for each
-automatic registration and its initial import. This serializes that portion of
-work even when channel concurrency is higher. `share-mode` does not create
-simultaneous independent per-channel exits. Node selection is confirmed against
-the controller; an observed exit IP does not establish that a node has an exclusive
-IP or prevent provider account restrictions. Human handoff releases the lease;
-resume attempts to pin the retained session's previous node again.
+A single Clash-compatible forwarding port has global selector state. Accounts
+using the same fixed group/node share one confirmed route lease and run in
+parallel without repinning it. A different node, or `rotate-node: true`, waits
+for every active holder to release before changing the selector. Degraded
+forwarding also permits parallel accounts because it performs no node change.
+`share-mode` does not create simultaneous independent per-channel exits. Human
+handoff releases the lease; resume pins the retained session's previous node.
+
+The default channel uses two workers, two isolated browser processes, a fixed
+route and a two-second start interval. Paste multiple `account|password` lines
+to create a batch; the channel concurrency and browser pool remain bounded to
+eight. An account that requires an external identity challenge retains its own
+checkpoint without blocking the remaining rows. Browser session state is never
+shared between accounts.
 
 Browser fallback is `embedded -> attach -> system -> manual`. Embedded and system
 modes use an installed Chrome/Chromium/Edge binary with an isolated profile, not a
@@ -146,10 +161,10 @@ channels:
     enabled: true
     provider: FreeAi
     proxy-url: http://127.0.0.1:12450
-    concurrency: 1
+    concurrency: 2
     group: 节点选择
-    rotate-node: true
-    interval-seconds: 45
+    rotate-node: false
+    interval-seconds: 2
     step-delay-millis: 900
     max-attempts: 2
 ```
@@ -202,6 +217,12 @@ and confirms the write by reading it back. The stored key entry retains the
 channel's `proxy-url`; the verification transport may temporarily be direct when
 the gateway has degraded.
 
+Verification requests run in parallel. After verification, a short commit lock
+protects a fresh provider read, append/deduplication, ETag write and confirmation.
+The verified model and endpoint must still match the fresh configuration. This
+prevents concurrent accounts from overwriting each other's keys while preserving
+the existing CAS protection against unrelated configuration edits.
+
 ## Driver extension and verification
 
 Implement `Driver` (`Kind`, `Run`, and `Probe`), add its kind to
@@ -224,6 +245,7 @@ node internal/registerbot/testdata/google_identifier.test.cjs
 node internal/registerbot/testdata/onboarding_completion.test.cjs
 # Optional installed-browser regression; all page requests use local fixtures:
 REGISTERBOT_BROWSER_SMOKE=1 go test ./internal/registerbot -run TestFreeAIFreshSurveyBrowser -v -count=1
+REGISTERBOT_BROWSER_SMOKE=1 go test ./internal/registerbot -run TestFreeAIParallelSurveyBrowser -v -count=1
 ```
 
 Unit tests exercise queue behavior, encrypted recovery, cancellation, gateway and
