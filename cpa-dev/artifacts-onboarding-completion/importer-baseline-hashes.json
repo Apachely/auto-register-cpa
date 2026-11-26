@@ -1,0 +1,10 @@
+[
+  {
+    "Path": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\api\\handlers\\management\\registerbot_import.go",
+    "Hash": "4CC2D556631778F3230EB714ACAC1B458F1372553F3B6B62674A9DB8C20B258E"
+  },
+  {
+    "Path": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\api\\handlers\\management\\registerbot_test.go",
+    "Hash": "6949D3EE25AC2130F2E1740551168EB37D246C13604FCD3FA13195A8ECC1FFDB"
+  }
+]

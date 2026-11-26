@@ -1,0 +1,1378 @@
+CPA onboarding completion transaction
+{
+  "target": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\freeai.go",
+  "baseline_sha256": "02e4069e15bd20a25ff23f6cd93c900f55ad2674b5d4f9c71515170427ea8033",
+  "modified_sha256": "b04b45a4659beab237227bdb364d20a320bce5617e7d628c5e64b65c79ecea56",
+  "rollback_sha256": "02e4069e15bd20a25ff23f6cd93c900f55ad2674b5d4f9c71515170427ea8033",
+  "reconstructed_sha256": "b04b45a4659beab237227bdb364d20a320bce5617e7d628c5e64b65c79ecea56",
+  "supplemental_importer": {
+    "modified_file": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\candidate\\registerbot_import.go",
+    "baseline_sha256": "4cc2d556631778f3230eb714acac1b458f1372553f3b6b62674a9db8c20b258e",
+    "modified_sha256": "3acc054ee328151f4b7bbfa218d0aa642e8dbbc0c5e4f45fa0d9990d7e64e48a",
+    "rollback_sha256": "4cc2d556631778f3230eb714acac1b458f1372553f3b6b62674a9db8c20b258e"
+  },
+  "roles": {
+    "MODIFIED_FILE": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\candidate\\freeai.go",
+    "DIFF_FILE": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\DIFF_FILE.patch",
+    "VERIFICATION": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\VERIFICATION.txt",
+    "ROLLBACK": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh"
+  }
+}
+
+Changed symbols: FreeAIDriver.Run; freeAIInspectScript; freeAIStageMessage; verifyRegisterBotKey.
+Runtime channel fields persisted: onboarding_role=student; onboarding_source=google.
+Inputs: same 11 credential-free DOM fixtures and same 8 reasoning-validation fixtures for BASELINE, MODIFIED and ROLLBACK.
+Prior transaction attempt exited 1 after git apply returned 0: local core.autocrlf converted 434 LF endings to CRLF, failing the byte-hash assertion. Retried with core.autocrlf=false; reconstruction hashes now match.
+
+BASELINE
+COMMAND_ARRAY: ["D:\\AP\\NodeJs\\node.EXE", "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\testdata\\onboarding_completion.test.cjs", "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\baseline\\internal\\registerbot\\freeai.go", "--observe"]
+CWD: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+EXIT_STATUS: 0
+STDOUT_BEGIN
+[
+  {
+    "case": "survey_without_step_heading",
+    "action": "onboarding_unknown",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "survey_before_claim",
+    "action": "onboarding_profile",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "survey_credit_success",
+    "action": "onboarding_credit",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "credit_success_before_wallet_refresh",
+    "action": "onboarding_profile",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "resume_optional_tutorial",
+    "action": "onboarding_test",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "paid_dashboard_with_setup_banner",
+    "action": "onboarding_entry",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "unpaid_dashboard",
+    "action": "onboarding_entry",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "default_key_not_first",
+    "action": "key",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": true
+  },
+  {
+    "case": "truncated_copy_literal",
+    "action": "loading",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "no_default_key",
+    "action": "key",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": true
+  },
+  {
+    "case": "hidden_copy_control",
+    "action": "loading",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  }
+]
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+MODIFIED
+COMMAND_ARRAY: ["D:\\AP\\NodeJs\\node.EXE", "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\testdata\\onboarding_completion.test.cjs", "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\candidate\\freeai.go", "--observe"]
+CWD: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+EXIT_STATUS: 0
+STDOUT_BEGIN
+[
+  {
+    "case": "survey_without_step_heading",
+    "action": "onboarding_profile",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "survey_before_claim",
+    "action": "onboarding_profile",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "survey_credit_success",
+    "action": "onboarding_credit",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "credit_success_before_wallet_refresh",
+    "action": "onboarding_credit",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "resume_optional_tutorial",
+    "action": "onboarding_credit",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "paid_dashboard_with_setup_banner",
+    "action": "key",
+    "credit": true,
+    "defaultKey": true,
+    "otherKey": false
+  },
+  {
+    "case": "unpaid_dashboard",
+    "action": "onboarding_entry",
+    "credit": false,
+    "defaultKey": true,
+    "otherKey": false
+  },
+  {
+    "case": "default_key_not_first",
+    "action": "key",
+    "credit": true,
+    "defaultKey": true,
+    "otherKey": false
+  },
+  {
+    "case": "truncated_copy_literal",
+    "action": "loading",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "no_default_key",
+    "action": "loading",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "hidden_copy_control",
+    "action": "loading",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  }
+]
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+MODIFIED_ASSERTIONS
+COMMAND_ARRAY: ["D:\\AP\\NodeJs\\node.EXE", "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\testdata\\onboarding_completion.test.cjs", "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\candidate\\freeai.go"]
+CWD: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+EXIT_STATUS: 0
+STDOUT_BEGIN
+[
+  {
+    "case": "survey_without_step_heading",
+    "action": "onboarding_profile",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "survey_before_claim",
+    "action": "onboarding_profile",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "survey_credit_success",
+    "action": "onboarding_credit",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "credit_success_before_wallet_refresh",
+    "action": "onboarding_credit",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "resume_optional_tutorial",
+    "action": "onboarding_credit",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "paid_dashboard_with_setup_banner",
+    "action": "key",
+    "credit": true,
+    "defaultKey": true,
+    "otherKey": false
+  },
+  {
+    "case": "unpaid_dashboard",
+    "action": "onboarding_entry",
+    "credit": false,
+    "defaultKey": true,
+    "otherKey": false
+  },
+  {
+    "case": "default_key_not_first",
+    "action": "key",
+    "credit": true,
+    "defaultKey": true,
+    "otherKey": false
+  },
+  {
+    "case": "truncated_copy_literal",
+    "action": "loading",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "no_default_key",
+    "action": "loading",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "hidden_copy_control",
+    "action": "loading",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  }
+]
+PASS 11 onboarding completion cases
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+ROLLBACK_EXECUTION
+COMMAND_ARRAY: ["D:/AP/Git/bin/bash.exe", "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh", "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\rollback-check\\freeai.go"]
+CWD: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+EXIT_STATUS: 0
+STDOUT_BEGIN
+RESTORED_PRISTINE_BYTES
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+ROLLBACK
+COMMAND_ARRAY: ["D:\\AP\\NodeJs\\node.EXE", "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\testdata\\onboarding_completion.test.cjs", "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\rollback-check\\freeai.go", "--observe"]
+CWD: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+EXIT_STATUS: 0
+STDOUT_BEGIN
+[
+  {
+    "case": "survey_without_step_heading",
+    "action": "onboarding_unknown",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "survey_before_claim",
+    "action": "onboarding_profile",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "survey_credit_success",
+    "action": "onboarding_credit",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "credit_success_before_wallet_refresh",
+    "action": "onboarding_profile",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "resume_optional_tutorial",
+    "action": "onboarding_test",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "paid_dashboard_with_setup_banner",
+    "action": "onboarding_entry",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "unpaid_dashboard",
+    "action": "onboarding_entry",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "default_key_not_first",
+    "action": "key",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": true
+  },
+  {
+    "case": "truncated_copy_literal",
+    "action": "loading",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "no_default_key",
+    "action": "key",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": true
+  },
+  {
+    "case": "hidden_copy_control",
+    "action": "loading",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  }
+]
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+IMPORTER_ROLLBACK_EXECUTION
+COMMAND_ARRAY: ["D:/AP/Git/bin/bash.exe", "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh", "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\rollback-check\\registerbot_import.go", "registerbot_import.go"]
+CWD: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+EXIT_STATUS: 0
+STDOUT_BEGIN
+RESTORED_PRISTINE_BYTES
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+IMPORTER_BASELINE
+COMMAND_ARRAY: ["go", "test", "-overlay", "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\importer-overlay-BASELINE.json", "./internal/api/handlers/management", "-run", "TestRegisterBotVerificationReasoningAtTokenLimit", "-v", "-count=1"]
+CWD: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+EXIT_STATUS: 1
+STDOUT_BEGIN
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content
+    registerbot_test.go:178: accepted=false want=true error=registerbot: key verification returned no assistant completion
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias
+    registerbot_test.go:178: accepted=false want=true error=registerbot: key verification returned no assistant completion
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_output
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role
+--- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit (0.00s)
+    --- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content (0.00s)
+    --- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_output (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role (0.00s)
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/api/handlers/management	0.183s
+FAIL
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+IMPORTER_MODIFIED
+COMMAND_ARRAY: ["go", "test", "-overlay", "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\importer-overlay-MODIFIED.json", "./internal/api/handlers/management", "-run", "TestRegisterBotVerificationReasoningAtTokenLimit", "-v", "-count=1"]
+CWD: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+EXIT_STATUS: 0
+STDOUT_BEGIN
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_output
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role
+--- PASS: TestRegisterBotVerificationReasoningAtTokenLimit (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_output (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role (0.00s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/api/handlers/management	0.177s
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+IMPORTER_ROLLBACK
+COMMAND_ARRAY: ["go", "test", "-overlay", "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\importer-overlay-ROLLBACK.json", "./internal/api/handlers/management", "-run", "TestRegisterBotVerificationReasoningAtTokenLimit", "-v", "-count=1"]
+CWD: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+EXIT_STATUS: 1
+STDOUT_BEGIN
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content
+    registerbot_test.go:178: accepted=false want=true error=registerbot: key verification returned no assistant completion
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias
+    registerbot_test.go:178: accepted=false want=true error=registerbot: key verification returned no assistant completion
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_output
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role
+--- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit (0.00s)
+    --- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content (0.00s)
+    --- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_output (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role (0.00s)
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/api/handlers/management	0.178s
+FAIL
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+PATCH_RECONSTRUCTION
+COMMAND_ARRAY: ["git", "-c", "core.autocrlf=false", "apply", "--unsafe-paths", "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\DIFF_FILE.patch"]
+CWD: E:\LY\Tool\CPA\cpa-dev\artifacts-onboarding-completion\patch-check
+EXIT_STATUS: 0
+STDOUT_BEGIN
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+baseline-existing-dom
+COMMAND: node internal/registerbot/testdata/google_identifier.test.cjs
+EXIT_STATUS: 0
+STDOUT_BEGIN
+Google identifier, visible password, Workspace consent, and network fixtures passed
+Full Copy key literal accepted; truncated display and copy values rejected
+Required onboarding precedes key capture; promotional text is not credited balance
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+baseline-go
+COMMAND: go test ./internal/registerbot ./internal/api/handlers/management
+EXIT_STATUS: 0
+STDOUT_BEGIN
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	0.557s
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/api/handlers/management	14.555s
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+modified-go
+COMMAND: go test ./internal/registerbot ./internal/api/handlers/management
+EXIT_STATUS: 0
+STDOUT_BEGIN
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	3.258s
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/api/handlers/management	(cached)
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+driver-fastpath
+COMMAND: go test ./internal/registerbot -run TestFreeAIOnboardingFastPath|TestFreeAIExistingPaidDashboard -v -count=1
+EXIT_STATUS: 0
+STDOUT_BEGIN
+=== RUN   TestFreeAIOnboardingFastPath
+    freeai_test.go:258: Student -> Google search -> Get my $5 (once) -> Finish later -> full Default Key; no setup loop
+--- PASS: TestFreeAIOnboardingFastPath (2.80s)
+=== RUN   TestFreeAIExistingPaidDashboardDoesNotReopenSetup
+--- PASS: TestFreeAIExistingPaidDashboardDoesNotReopenSetup (0.00s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	2.896s
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+final-go
+COMMAND: go test ./internal/registerbot ./internal/api/handlers/management
+EXIT_STATUS: 0
+STDOUT_BEGIN
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	(cached)
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/api/handlers/management	14.583s
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+final-vet
+COMMAND: go vet ./internal/registerbot ./internal/api/handlers/management
+EXIT_STATUS: 0
+STDOUT_BEGIN
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+final-build
+COMMAND: go build -ldflags -X main.Version=8.1.2-registerbot-fix6-onboarding -o artifacts-onboarding-completion/cli-proxy-api.exe ./cmd/server
+EXIT_STATUS: 0
+STDOUT_BEGIN
+
+STDOUT_END
+STDERR_BEGIN
+
+STDERR_END
+
+Earlier corrected verification error:
+COMMAND: go test ./internal/registerbot ./internal/api/handlers/management
+EXIT_STATUS: 1
+STDERR_BEGIN
+# github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot [github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot.test]
+internal\registerbot\freeai_test.go:193:29: cannot use request.Params (variable of type map[string]any) as []byte value in argument to json.Unmarshal
+internal\registerbot\freeai_test.go:239:29: cannot use request.Params (variable of type map[string]any) as []byte value in argument to json.Unmarshal
+STDERR_END
+Correction: read expression/type directly from the existing Params map; focused test rerun passed.
+
+Browser evidence (observed through CUA; no real credentials stored here):
+Google OAuth login succeeded. Login callback said Account not found. User confirmed registration terms.
+Google registration reached /setup. Student and Google search checked. Get my $5 clicked once.
+Observed Normal $5.00 and $5.00 is in your balance. Clicked Finish later and go to my dashboard.
+Observed /dashboard with NORMAL CREDITS $5.00; Finish setup banner remained; Default Key row Active.
+Clicked Copy key: API key copied toast. Browser clipboard bridge returned empty; full button copy literal independently verified at 46 characters, hint sk-...IYfQ.
+No extra account, key, Discord connection or paid plan was created for testing.
+
+FINAL LIVE ACCEPTANCE
+{
+  "runId": "d7e4bd58-1f17-430f-ac46-c6879108c9e3",
+  "status": "done",
+  "done": 1,
+  "pendingWrite": 0,
+  "keyHint": "sk-…IYfQ",
+  "keyLength": 46,
+  "keyCount": 7,
+  "existingKeysUnchanged": true,
+  "otherProviderFieldsUnchanged": true,
+  "role": "student",
+  "source": "google",
+  "deployedVersion": "8.1.2-registerbot-fix6-onboarding",
+  "deployedSHA256": "610EDDF54CE87DD8E5A7F5F78319B51F11B8F8BA06008112537EC9BCEE9BAEC7",
+  "pid": 26460
+}
+Run event key_verified_imported followed by done was observed.
+Provider GET readback confirmed the 46-character Default Key, expected proxy, 7 total keys, and unchanged original 6 key entries.
+Deployment: 
+{
+  "backup": "E:\\LY\\Tool\\CPA\\cpa-dev\\deployment-backups\\registerbot-onboarding-20261125-193030",
+  "deployed": "E:\\LY\\Tool\\CPA\\cli-proxy-api.exe",
+  "sha256": "610EDDF54CE87DD8E5A7F5F78319B51F11B8F8BA06008112537EC9BCEE9BAEC7",
+  "version": "8.1.2-registerbot-fix6-onboarding",
+  "role": "student",
+  "source": "google",
+  "newPid": "26460",
+  "firstCopyError": "File remained mapped immediately after Stop-Process; exit 1; verified no process before retry"
+}
+Provider response-shape diagnosis: 
+{
+  "http": 200,
+  "finishReason": "length",
+  "messageFields": [
+    "content",
+    "reasoning",
+    "reasoning_content",
+    "refusal",
+    "role"
+  ],
+  "contentLength": 0,
+  "reasoningContentLength": 15,
+  "reasoningLength": 15,
+  "usage": {
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "completion_tokens": 5,
+    "completion_tokens_details": {
+      "reasoning_tokens": 4
+    },
+    "prompt_tokens": 0,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 5
+  },
+  "object": "chat.completion"
+}
+
+FINAL_SOURCE_DIFF_CHECK_EXIT: 0
+
+FINAL AUDIT
+Pre-login action block is byte-for-byte unchanged.
+Driver and importer candidates match deployed build source.
+Live queue done=1; pending_write=0; seven provider keys; original six unchanged.
+Earlier final-audit command exited 1 due to PowerShell quoting causing SyntaxError: unterminated string literal; no audit writes executed. Replaced with this saved Python audit.
+Saved audit first exited 1 on the Windows default GBK decoder; explicitly set UTF-8 for source reads and reran.
+Full repository-relative patch including regression tests: E:\LY\Tool\CPA\cpa-dev\artifacts-onboarding-completion\source-changes.patch
+ROLLBACK.sh TARGET_COPY restores the original driver; ROLLBACK.sh TARGET_COPY registerbot_import.go restores the original importer. Both were executed on separate copies and verified against original hashes.
+
+FOLLOW-UP phase1
+Target: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\freeai.go", "baseline_sha256": "02e4069e15bd20a25ff23f6cd93c900f55ad2674b5d4f9c71515170427ea8033", "modified_sha256": "2e34c979e87eb0f6a377d537d8c4e6c0704fa371acd556422c7e2bf02a981cc2"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\api\\handlers\\management\\registerbot_import.go", "baseline_sha256": "4cc2d556631778f3230eb714acac1b458f1372553f3b6b62674a9db8c20b258e", "modified_sha256": "3acc054ee328151f4b7bbfa218d0aa642e8dbbc0c5e4f45fa0d9990d7e64e48a"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\settings.go", "baseline_sha256": "21fa1aa8566e38f5d59d0e3435a8abb8463019627b0d76c5a62e0975a340800f", "modified_sha256": "170d62b44ee01e9491c1f0abafecadb1acf5f6eafc900233fdee6fe62f2bcb54"}
+{
+  "name": "RESTORE_freeai.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase1\\rollback-check\\freeai.go",
+    "phase1-freeai.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "RESTORE_settings.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase1\\rollback-check\\settings.go",
+    "phase1-settings.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "BASELINE",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase1\\overlay-BASELINE.json",
+    "./internal/registerbot",
+    "-run",
+    "TestFreeAIFreshSurveyBrowser",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 1,
+  "stdout": "=== RUN   TestFreeAIFreshSurveyBrowser\n    onboarding_browser_test.go:103: fresh survey did not finish: key=false error=registerbot: operator action required\n--- FAIL: TestFreeAIFreshSurveyBrowser (0.46s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t0.555s\nFAIL\n",
+  "stderr": ""
+}
+{
+  "name": "MODIFIED",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase1\\overlay-MODIFIED.json",
+    "./internal/registerbot",
+    "-run",
+    "TestFreeAIFreshSurveyBrowser",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "=== RUN   TestFreeAIFreshSurveyBrowser\n    onboarding_browser_test.go:108: PASS real browser: delayed new survey -> Student -> Google search -> one claim -> Finish later -> complete Default Key; no manual input or provider network\n--- PASS: TestFreeAIFreshSurveyBrowser (3.98s)\nPASS\nok  \tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t4.072s\n",
+  "stderr": ""
+}
+{
+  "name": "ROLLBACK",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase1\\overlay-ROLLBACK.json",
+    "./internal/registerbot",
+    "-run",
+    "TestFreeAIFreshSurveyBrowser",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 1,
+  "stdout": "=== RUN   TestFreeAIFreshSurveyBrowser\n    onboarding_browser_test.go:103: fresh survey did not finish: key=false error=registerbot: operator action required\n--- FAIL: TestFreeAIFreshSurveyBrowser (0.46s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t0.551s\nFAIL\n",
+  "stderr": ""
+}
+{
+  "name": "PATCH_RECONSTRUCTION",
+  "command": [
+    "git",
+    "-c",
+    "core.autocrlf=false",
+    "apply",
+    "--unsafe-paths",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\DIFF_FILE.patch"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase1\\patch-check",
+  "exit": 0,
+  "stdout": "",
+  "stderr": ""
+}
+Phase1 preparatory test compilation corrections: Pool.Close -> existing Pool.Shutdown; split invalid := selector assignment. Both initial compile commands exited 1, then substantive browser baseline reproduced operator-action failure.
+
+FOLLOW-UP phase2
+Target: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\freeai.go", "baseline_sha256": "02e4069e15bd20a25ff23f6cd93c900f55ad2674b5d4f9c71515170427ea8033", "modified_sha256": "2e34c979e87eb0f6a377d537d8c4e6c0704fa371acd556422c7e2bf02a981cc2"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\api\\handlers\\management\\registerbot_import.go", "baseline_sha256": "4cc2d556631778f3230eb714acac1b458f1372553f3b6b62674a9db8c20b258e", "modified_sha256": "e5dbe5cb5eb82ee673f214da0d5b26720b9a7f97dec36d8b59701953a9c023a3"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\settings.go", "baseline_sha256": "21fa1aa8566e38f5d59d0e3435a8abb8463019627b0d76c5a62e0975a340800f", "modified_sha256": "5a19382eb4292d387f664149e9f0ce3ee5f45667aaf358696e4de5776015709d"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\gateway.go", "baseline_sha256": "ce29702a68c85d249ad4616a0013bd3959a22c9c625770f36b8067b01566af9e", "modified_sha256": "fc0ae8aa3064e20cf6856d8dac812aae0bb534d2720b6f9004ffacb724290708"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\engine.go", "baseline_sha256": "8ac019d7628d7f5b8678efe89f1cd73a4b684e849851cdec0739fe11ddcca98d", "modified_sha256": "8ac019d7628d7f5b8678efe89f1cd73a4b684e849851cdec0739fe11ddcca98d"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\api\\handlers\\management\\handler.go", "baseline_sha256": "53ff5b1f5060fe8a5b8149c823ee2b8cc7264ce5d7b43dd28fbf5a6aba30152e", "modified_sha256": "d8021a225a12ac41377022f03600c4bb8fea33dd9539ce39db605ec185bf7e89"}
+{
+  "name": "RESTORE_gateway.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\gateway.go",
+    "phase2-gateway.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "RESTORE_settings.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\settings.go",
+    "phase2-settings.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "RESTORE_registerbot_import.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\registerbot_import.go",
+    "phase2-registerbot_import.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "RESTORE_handler.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\handler.go",
+    "phase2-handler.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "BASELINE",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\overlay-BASELINE.json",
+    "./internal/registerbot",
+    "-run",
+    "TestGatewayFixedRouteAllowsParallelAccounts|TestGatewayDegradedForwardingAllowsParallelAccounts|TestEngineBatchReachesConfiguredConcurrencyThroughGateway",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 1,
+  "stdout": "=== RUN   TestGatewayFixedRouteAllowsParallelAccounts\n    parallel_test.go:67: same fixed route was serialized: context deadline exceeded\n--- FAIL: TestGatewayFixedRouteAllowsParallelAccounts (1.00s)\n=== RUN   TestGatewayDegradedForwardingAllowsParallelAccounts\n    parallel_test.go:102: non-mutating fallback serialized: context deadline exceeded\n--- FAIL: TestGatewayDegradedForwardingAllowsParallelAccounts (1.00s)\n=== RUN   TestEngineBatchReachesConfiguredConcurrencyThroughGateway\n    parallel_test.go:168: batch did not reach a second active driver through the gateway\n--- FAIL: TestEngineBatchReachesConfiguredConcurrencyThroughGateway (3.03s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t5.127s\nFAIL\n",
+  "stderr": ""
+}
+{
+  "name": "MODIFIED",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\overlay-MODIFIED.json",
+    "./internal/registerbot",
+    "-run",
+    "TestGatewayFixedRouteAllowsParallelAccounts|TestGatewayDegradedForwardingAllowsParallelAccounts|TestEngineBatchReachesConfiguredConcurrencyThroughGateway",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "=== RUN   TestGatewayFixedRouteAllowsParallelAccounts\n    parallel_test.go:89: two accounts share one confirmed fixed route; incompatible routes wait until both release\n--- PASS: TestGatewayFixedRouteAllowsParallelAccounts (0.00s)\n=== RUN   TestGatewayDegradedForwardingAllowsParallelAccounts\n--- PASS: TestGatewayDegradedForwardingAllowsParallelAccounts (0.00s)\n=== RUN   TestEngineBatchReachesConfiguredConcurrencyThroughGateway\n    parallel_test.go:180: 3 input accounts completed; 2 simultaneous drivers through the real gateway; concurrency ceiling respected\n--- PASS: TestEngineBatchReachesConfiguredConcurrencyThroughGateway (0.03s)\nPASS\nok  \tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t0.130s\n",
+  "stderr": ""
+}
+{
+  "name": "ROLLBACK",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\overlay-ROLLBACK.json",
+    "./internal/registerbot",
+    "-run",
+    "TestGatewayFixedRouteAllowsParallelAccounts|TestGatewayDegradedForwardingAllowsParallelAccounts|TestEngineBatchReachesConfiguredConcurrencyThroughGateway",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 1,
+  "stdout": "=== RUN   TestGatewayFixedRouteAllowsParallelAccounts\n    parallel_test.go:67: same fixed route was serialized: context deadline exceeded\n--- FAIL: TestGatewayFixedRouteAllowsParallelAccounts (1.00s)\n=== RUN   TestGatewayDegradedForwardingAllowsParallelAccounts\n    parallel_test.go:102: non-mutating fallback serialized: context deadline exceeded\n--- FAIL: TestGatewayDegradedForwardingAllowsParallelAccounts (1.00s)\n=== RUN   TestEngineBatchReachesConfiguredConcurrencyThroughGateway\n    parallel_test.go:168: batch did not reach a second active driver through the gateway\n--- FAIL: TestEngineBatchReachesConfiguredConcurrencyThroughGateway (3.03s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t5.132s\nFAIL\n",
+  "stderr": ""
+}
+{
+  "name": "PATCH_RECONSTRUCTION",
+  "command": [
+    "git",
+    "-c",
+    "core.autocrlf=false",
+    "apply",
+    "--unsafe-paths",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\DIFF_FILE.patch"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\patch-check",
+  "exit": 0,
+  "stdout": "",
+  "stderr": ""
+}
+Phase1 preparatory test compilation corrections: Pool.Close -> existing Pool.Shutdown; split invalid := selector assignment. Both initial compile commands exited 1, then substantive browser baseline reproduced operator-action failure.
+
+FOLLOW-UP phase2
+Target: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\freeai.go", "baseline_sha256": "02e4069e15bd20a25ff23f6cd93c900f55ad2674b5d4f9c71515170427ea8033", "modified_sha256": "a0a8e2f1d9866b1aa777ae81fc4a697a4ccaa956da758b39e1bf512a007c42a8"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\api\\handlers\\management\\registerbot_import.go", "baseline_sha256": "4cc2d556631778f3230eb714acac1b458f1372553f3b6b62674a9db8c20b258e", "modified_sha256": "e5dbe5cb5eb82ee673f214da0d5b26720b9a7f97dec36d8b59701953a9c023a3"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\settings.go", "baseline_sha256": "21fa1aa8566e38f5d59d0e3435a8abb8463019627b0d76c5a62e0975a340800f", "modified_sha256": "5a19382eb4292d387f664149e9f0ce3ee5f45667aaf358696e4de5776015709d"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\gateway.go", "baseline_sha256": "ce29702a68c85d249ad4616a0013bd3959a22c9c625770f36b8067b01566af9e", "modified_sha256": "fc0ae8aa3064e20cf6856d8dac812aae0bb534d2720b6f9004ffacb724290708"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\engine.go", "baseline_sha256": "8ac019d7628d7f5b8678efe89f1cd73a4b684e849851cdec0739fe11ddcca98d", "modified_sha256": "8ac019d7628d7f5b8678efe89f1cd73a4b684e849851cdec0739fe11ddcca98d"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\api\\handlers\\management\\handler.go", "baseline_sha256": "53ff5b1f5060fe8a5b8149c823ee2b8cc7264ce5d7b43dd28fbf5a6aba30152e", "modified_sha256": "d8021a225a12ac41377022f03600c4bb8fea33dd9539ce39db605ec185bf7e89"}
+{
+  "name": "RESTORE_freeai.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\freeai.go",
+    "phase2-freeai.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "RESTORE_gateway.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\gateway.go",
+    "phase2-gateway.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "RESTORE_settings.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\settings.go",
+    "phase2-settings.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "RESTORE_registerbot_import.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\registerbot_import.go",
+    "phase2-registerbot_import.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "RESTORE_handler.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\handler.go",
+    "phase2-handler.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "BASELINE",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\overlay-BASELINE.json",
+    "./internal/registerbot",
+    "-run",
+    "TestGatewayFixedRouteAllowsParallelAccounts|TestGatewayDegradedForwardingAllowsParallelAccounts|TestEngineBatchReachesConfiguredConcurrencyThroughGateway",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 1,
+  "stdout": "=== RUN   TestGatewayFixedRouteAllowsParallelAccounts\n    parallel_test.go:67: same fixed route was serialized: context deadline exceeded\n--- FAIL: TestGatewayFixedRouteAllowsParallelAccounts (1.00s)\n=== RUN   TestGatewayDegradedForwardingAllowsParallelAccounts\n    parallel_test.go:102: non-mutating fallback serialized: context deadline exceeded\n--- FAIL: TestGatewayDegradedForwardingAllowsParallelAccounts (1.00s)\n=== RUN   TestEngineBatchReachesConfiguredConcurrencyThroughGateway\n    parallel_test.go:168: batch did not reach a second active driver through the gateway\n--- FAIL: TestEngineBatchReachesConfiguredConcurrencyThroughGateway (3.03s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t5.138s\nFAIL\n",
+  "stderr": ""
+}
+{
+  "name": "MODIFIED",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\overlay-MODIFIED.json",
+    "./internal/registerbot",
+    "-run",
+    "TestGatewayFixedRouteAllowsParallelAccounts|TestGatewayDegradedForwardingAllowsParallelAccounts|TestEngineBatchReachesConfiguredConcurrencyThroughGateway",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "=== RUN   TestGatewayFixedRouteAllowsParallelAccounts\n    parallel_test.go:89: two accounts share one confirmed fixed route; incompatible routes wait until both release\n--- PASS: TestGatewayFixedRouteAllowsParallelAccounts (0.00s)\n=== RUN   TestGatewayDegradedForwardingAllowsParallelAccounts\n--- PASS: TestGatewayDegradedForwardingAllowsParallelAccounts (0.00s)\n=== RUN   TestEngineBatchReachesConfiguredConcurrencyThroughGateway\n    parallel_test.go:180: 3 input accounts completed; 2 simultaneous drivers through the real gateway; concurrency ceiling respected\n--- PASS: TestEngineBatchReachesConfiguredConcurrencyThroughGateway (0.04s)\nPASS\nok  \tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t0.137s\n",
+  "stderr": ""
+}
+{
+  "name": "ROLLBACK",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\overlay-ROLLBACK.json",
+    "./internal/registerbot",
+    "-run",
+    "TestGatewayFixedRouteAllowsParallelAccounts|TestGatewayDegradedForwardingAllowsParallelAccounts|TestEngineBatchReachesConfiguredConcurrencyThroughGateway",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 1,
+  "stdout": "=== RUN   TestGatewayFixedRouteAllowsParallelAccounts\n    parallel_test.go:67: same fixed route was serialized: context deadline exceeded\n--- FAIL: TestGatewayFixedRouteAllowsParallelAccounts (1.00s)\n=== RUN   TestGatewayDegradedForwardingAllowsParallelAccounts\n    parallel_test.go:102: non-mutating fallback serialized: context deadline exceeded\n--- FAIL: TestGatewayDegradedForwardingAllowsParallelAccounts (1.00s)\n=== RUN   TestEngineBatchReachesConfiguredConcurrencyThroughGateway\n    parallel_test.go:168: batch did not reach a second active driver through the gateway\n--- FAIL: TestEngineBatchReachesConfiguredConcurrencyThroughGateway (3.04s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t5.136s\nFAIL\n",
+  "stderr": ""
+}
+{
+  "name": "TIMEOUT_BASELINE",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\timeout-overlay-BASELINE.json",
+    "./internal/registerbot",
+    "-run",
+    "TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 1,
+  "stdout": "=== RUN   TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff\n    freeai_test.go:305: ordinary timeout did not close and retry: registerbot: operator action required\n--- FAIL: TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff (1.40s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t1.496s\nFAIL\n",
+  "stderr": ""
+}
+{
+  "name": "TIMEOUT_MODIFIED",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\timeout-overlay-MODIFIED.json",
+    "./internal/registerbot",
+    "-run",
+    "TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "=== RUN   TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff\n--- PASS: TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff (1.40s)\nPASS\nok  \tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t1.496s\n",
+  "stderr": ""
+}
+{
+  "name": "TIMEOUT_ROLLBACK",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\timeout-overlay-ROLLBACK.json",
+    "./internal/registerbot",
+    "-run",
+    "TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 1,
+  "stdout": "=== RUN   TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff\n    freeai_test.go:305: ordinary timeout did not close and retry: registerbot: operator action required\n--- FAIL: TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff (1.40s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t1.514s\nFAIL\n",
+  "stderr": ""
+}
+{
+  "name": "PATCH_RECONSTRUCTION",
+  "command": [
+    "git",
+    "-c",
+    "core.autocrlf=false",
+    "apply",
+    "--unsafe-paths",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\DIFF_FILE.patch"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\patch-check",
+  "exit": 0,
+  "stdout": "",
+  "stderr": ""
+}
+Phase1 preparatory test compilation corrections: Pool.Close -> existing Pool.Shutdown; split invalid := selector assignment. Both initial compile commands exited 1, then substantive browser baseline reproduced operator-action failure.
+
+FOLLOW-UP phase2
+Target: E:\LY\Tool\CPA\cpa-dev\cpa-backend
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\freeai.go", "baseline_sha256": "02e4069e15bd20a25ff23f6cd93c900f55ad2674b5d4f9c71515170427ea8033", "modified_sha256": "100ab90e5b0f98299b826eb570ec1e5d2b0201e03bf9ae5855b46cbe4e44295c"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\api\\handlers\\management\\registerbot_import.go", "baseline_sha256": "4cc2d556631778f3230eb714acac1b458f1372553f3b6b62674a9db8c20b258e", "modified_sha256": "e5dbe5cb5eb82ee673f214da0d5b26720b9a7f97dec36d8b59701953a9c023a3"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\settings.go", "baseline_sha256": "21fa1aa8566e38f5d59d0e3435a8abb8463019627b0d76c5a62e0975a340800f", "modified_sha256": "5a19382eb4292d387f664149e9f0ce3ee5f45667aaf358696e4de5776015709d"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\gateway.go", "baseline_sha256": "ce29702a68c85d249ad4616a0013bd3959a22c9c625770f36b8067b01566af9e", "modified_sha256": "fc0ae8aa3064e20cf6856d8dac812aae0bb534d2720b6f9004ffacb724290708"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\engine.go", "baseline_sha256": "8ac019d7628d7f5b8678efe89f1cd73a4b684e849851cdec0739fe11ddcca98d", "modified_sha256": "8ac019d7628d7f5b8678efe89f1cd73a4b684e849851cdec0739fe11ddcca98d"}
+{"file": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\api\\handlers\\management\\handler.go", "baseline_sha256": "53ff5b1f5060fe8a5b8149c823ee2b8cc7264ce5d7b43dd28fbf5a6aba30152e", "modified_sha256": "d8021a225a12ac41377022f03600c4bb8fea33dd9539ce39db605ec185bf7e89"}
+{
+  "name": "RESTORE_freeai.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\freeai.go",
+    "phase2-freeai.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "RESTORE_gateway.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\gateway.go",
+    "phase2-gateway.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "RESTORE_settings.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\settings.go",
+    "phase2-settings.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "RESTORE_registerbot_import.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\registerbot_import.go",
+    "phase2-registerbot_import.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "RESTORE_handler.go",
+  "command": [
+    "D:/AP/Git/bin/bash.exe",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\handler.go",
+    "phase2-handler.go"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "RESTORED_PRISTINE_BYTES\n",
+  "stderr": ""
+}
+{
+  "name": "BASELINE",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\overlay-BASELINE.json",
+    "./internal/registerbot",
+    "-run",
+    "TestGatewayFixedRouteAllowsParallelAccounts|TestGatewayDegradedForwardingAllowsParallelAccounts|TestEngineBatchReachesConfiguredConcurrencyThroughGateway",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 1,
+  "stdout": "=== RUN   TestGatewayFixedRouteAllowsParallelAccounts\n    parallel_test.go:67: same fixed route was serialized: context deadline exceeded\n--- FAIL: TestGatewayFixedRouteAllowsParallelAccounts (1.00s)\n=== RUN   TestGatewayDegradedForwardingAllowsParallelAccounts\n    parallel_test.go:102: non-mutating fallback serialized: context deadline exceeded\n--- FAIL: TestGatewayDegradedForwardingAllowsParallelAccounts (1.00s)\n=== RUN   TestEngineBatchReachesConfiguredConcurrencyThroughGateway\n    parallel_test.go:168: batch did not reach a second active driver through the gateway\n--- FAIL: TestEngineBatchReachesConfiguredConcurrencyThroughGateway (3.04s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t5.135s\nFAIL\n",
+  "stderr": ""
+}
+{
+  "name": "MODIFIED",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\overlay-MODIFIED.json",
+    "./internal/registerbot",
+    "-run",
+    "TestGatewayFixedRouteAllowsParallelAccounts|TestGatewayDegradedForwardingAllowsParallelAccounts|TestEngineBatchReachesConfiguredConcurrencyThroughGateway",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "=== RUN   TestGatewayFixedRouteAllowsParallelAccounts\n    parallel_test.go:89: two accounts share one confirmed fixed route; incompatible routes wait until both release\n--- PASS: TestGatewayFixedRouteAllowsParallelAccounts (0.00s)\n=== RUN   TestGatewayDegradedForwardingAllowsParallelAccounts\n--- PASS: TestGatewayDegradedForwardingAllowsParallelAccounts (0.00s)\n=== RUN   TestEngineBatchReachesConfiguredConcurrencyThroughGateway\n    parallel_test.go:180: 3 input accounts completed; 2 simultaneous drivers through the real gateway; concurrency ceiling respected\n--- PASS: TestEngineBatchReachesConfiguredConcurrencyThroughGateway (0.03s)\nPASS\nok  \tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t0.133s\n",
+  "stderr": ""
+}
+{
+  "name": "ROLLBACK",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\overlay-ROLLBACK.json",
+    "./internal/registerbot",
+    "-run",
+    "TestGatewayFixedRouteAllowsParallelAccounts|TestGatewayDegradedForwardingAllowsParallelAccounts|TestEngineBatchReachesConfiguredConcurrencyThroughGateway",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 1,
+  "stdout": "=== RUN   TestGatewayFixedRouteAllowsParallelAccounts\n    parallel_test.go:67: same fixed route was serialized: context deadline exceeded\n--- FAIL: TestGatewayFixedRouteAllowsParallelAccounts (1.00s)\n=== RUN   TestGatewayDegradedForwardingAllowsParallelAccounts\n    parallel_test.go:102: non-mutating fallback serialized: context deadline exceeded\n--- FAIL: TestGatewayDegradedForwardingAllowsParallelAccounts (1.00s)\n=== RUN   TestEngineBatchReachesConfiguredConcurrencyThroughGateway\n    parallel_test.go:168: batch did not reach a second active driver through the gateway\n--- FAIL: TestEngineBatchReachesConfiguredConcurrencyThroughGateway (3.03s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t5.132s\nFAIL\n",
+  "stderr": ""
+}
+{
+  "name": "TIMEOUT_BASELINE",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\timeout-overlay-BASELINE.json",
+    "./internal/registerbot",
+    "-run",
+    "TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 1,
+  "stdout": "=== RUN   TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff\n    freeai_test.go:305: ordinary timeout did not close and retry: registerbot: operator action required\n--- FAIL: TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff (1.40s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t1.494s\nFAIL\n",
+  "stderr": ""
+}
+{
+  "name": "TIMEOUT_MODIFIED",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\timeout-overlay-MODIFIED.json",
+    "./internal/registerbot",
+    "-run",
+    "TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "=== RUN   TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff\n--- PASS: TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff (1.40s)\nPASS\nok  \tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t1.493s\n",
+  "stderr": ""
+}
+{
+  "name": "TIMEOUT_ROLLBACK",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\timeout-overlay-ROLLBACK.json",
+    "./internal/registerbot",
+    "-run",
+    "TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff",
+    "-v",
+    "-count=1"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 1,
+  "stdout": "=== RUN   TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff\n    freeai_test.go:305: ordinary timeout did not close and retry: registerbot: operator action required\n--- FAIL: TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff (1.40s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t1.498s\nFAIL\n",
+  "stderr": ""
+}
+{
+  "name": "SURVEY_BASELINE",
+  "command": [
+    "node",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\testdata\\onboarding_completion.test.cjs",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\baseline\\freeai.go",
+    "--observe"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "[\n  {\n    \"case\": \"survey_without_step_heading\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_before_claim\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_credit_success\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"credit_success_before_wallet_refresh\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_saved_without_welcome_credit\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"resume_optional_tutorial\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"paid_dashboard_with_setup_banner\",\n    \"action\": \"key\",\n    \"credit\": true,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"unpaid_dashboard\",\n    \"action\": \"onboarding_entry\",\n    \"credit\": false,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"default_key_not_first\",\n    \"action\": \"key\",\n    \"credit\": true,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"truncated_copy_literal\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"no_default_key\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"hidden_copy_control\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  }\n]\n",
+  "stderr": ""
+}
+{
+  "name": "SURVEY_MODIFIED",
+  "command": [
+    "node",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\testdata\\onboarding_completion.test.cjs",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\candidate\\freeai.go",
+    "--observe"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "[\n  {\n    \"case\": \"survey_without_step_heading\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_before_claim\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_credit_success\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"credit_success_before_wallet_refresh\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_saved_without_welcome_credit\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"resume_optional_tutorial\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"paid_dashboard_with_setup_banner\",\n    \"action\": \"key\",\n    \"credit\": true,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"unpaid_dashboard\",\n    \"action\": \"onboarding_entry\",\n    \"credit\": false,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"default_key_not_first\",\n    \"action\": \"key\",\n    \"credit\": true,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"truncated_copy_literal\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"no_default_key\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"hidden_copy_control\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  }\n]\n",
+  "stderr": ""
+}
+{
+  "name": "SURVEY_ROLLBACK",
+  "command": [
+    "node",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\testdata\\onboarding_completion.test.cjs",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\rollback-check\\freeai.go",
+    "--observe"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+  "exit": 0,
+  "stdout": "[\n  {\n    \"case\": \"survey_without_step_heading\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_before_claim\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_credit_success\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"credit_success_before_wallet_refresh\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_saved_without_welcome_credit\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"resume_optional_tutorial\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"paid_dashboard_with_setup_banner\",\n    \"action\": \"key\",\n    \"credit\": true,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"unpaid_dashboard\",\n    \"action\": \"onboarding_entry\",\n    \"credit\": false,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"default_key_not_first\",\n    \"action\": \"key\",\n    \"credit\": true,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"truncated_copy_literal\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"no_default_key\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"hidden_copy_control\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  }\n]\n",
+  "stderr": ""
+}
+{
+  "name": "PATCH_RECONSTRUCTION",
+  "command": [
+    "git",
+    "-c",
+    "core.autocrlf=false",
+    "apply",
+    "--unsafe-paths",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\DIFF_FILE.patch"
+  ],
+  "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase2\\patch-check",
+  "exit": 0,
+  "stdout": "",
+  "stderr": ""
+}
+Phase1 preparatory test compilation corrections: Pool.Close -> existing Pool.Shutdown; split invalid := selector assignment. Both initial compile commands exited 1, then substantive browser baseline reproduced operator-action failure.
+
+LATEST LIVE OBSERVATION: welcome credit denied by provider network eligibility rule.
+{
+  "runId": "d9eb9036-b542-40fe-9589-56dc00dca407",
+  "status": "waiting_human",
+  "stage": "waiting_human",
+  "harvestedKeys": 0,
+  "done": 0,
+  "pendingWrite": 0,
+  "providerMessage": "welcome_credit_unavailable",
+  "gatewayRewardRetryStarted": false
+}
+No gateway switch or additional registration was started to evade the reward restriction.
+The new account survey was submitted automatically with student/google. End-to-end key harvest for this fresh account is not yet proven.
+Phase one commit: 0f54ad9270e0f62d6ef1da46cd9b24b912548b6e. Later parallel/recovery changes remain uncommitted.

@@ -1,0 +1,33 @@
+{
+  "id": "d9eb9036-b542-40fe-9589-56dc00dca407",
+  "channel": "freeaiapikey",
+  "status": "waiting_human",
+  "created_at": 1795617639103,
+  "updated_at": 1795618470490,
+  "rows": [
+    {
+      "id": "3ea49331-f6bf-4870-aa7b-2dfe5d79a03b",
+      "line": 1,
+      "account": "la***@columeds.us",
+      "stage": "waiting_human",
+      "attempt": 1,
+      "reason": "manual_action_required",
+      "updated_at": 1795618470490
+    }
+  ],
+  "counters": {
+    "channel": "freeaiapikey",
+    "total": 1,
+    "queued": 0,
+    "running": 0,
+    "done": 0,
+    "failed": 0,
+    "skipped": 0,
+    "waiting_human": 1,
+    "pending_write": 0,
+    "harvested_keys": 0,
+    "stage": "waiting_human",
+    "stalled": true,
+    "updated_at": 1795618470490
+  }
+}

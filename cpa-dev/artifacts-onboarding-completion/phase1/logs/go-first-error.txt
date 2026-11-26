@@ -1,0 +1,2 @@
+# github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot [github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot.test]
+internal\registerbot\settings_test.go:18:4: non-name set.Channels[0].OnboardingRole on left side of :=

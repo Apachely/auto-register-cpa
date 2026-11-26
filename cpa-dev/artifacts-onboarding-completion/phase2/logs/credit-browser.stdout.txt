@@ -1,0 +1,11 @@
+=== RUN   TestFreeAIFreshSurveyBrowser
+    onboarding_browser_test.go:19: PASS real browsers: parallel=1 credit=true claims=1 dashboards=1; delayed survey -> Student -> Google search -> Finish later -> distinct complete Default Keys; no manual input or provider network
+--- PASS: TestFreeAIFreshSurveyBrowser (4.00s)
+=== RUN   TestFreeAIParallelSurveyBrowser
+    onboarding_browser_test.go:23: PASS real browsers: parallel=2 credit=true claims=2 dashboards=2; delayed survey -> Student -> Google search -> Finish later -> distinct complete Default Keys; no manual input or provider network
+--- PASS: TestFreeAIParallelSurveyBrowser (4.83s)
+=== RUN   TestFreeAISurveyWithoutWelcomeCredit
+    onboarding_browser_test.go:27: PASS real browsers: parallel=1 credit=false claims=1 dashboards=1; delayed survey -> Student -> Google search -> Finish later -> distinct complete Default Keys; no manual input or provider network
+--- PASS: TestFreeAISurveyWithoutWelcomeCredit (4.00s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	12.910s

@@ -1,0 +1,79 @@
+[
+  {
+    "case": "survey_without_step_heading",
+    "action": "onboarding_unknown",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "survey_before_claim",
+    "action": "onboarding_profile",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "survey_credit_success",
+    "action": "onboarding_credit",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "credit_success_before_wallet_refresh",
+    "action": "onboarding_profile",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "resume_optional_tutorial",
+    "action": "onboarding_test",
+    "credit": true,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "paid_dashboard_with_setup_banner",
+    "action": "onboarding_entry",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "unpaid_dashboard",
+    "action": "onboarding_entry",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "default_key_not_first",
+    "action": "key",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": true
+  },
+  {
+    "case": "truncated_copy_literal",
+    "action": "loading",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  },
+  {
+    "case": "no_default_key",
+    "action": "key",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": true
+  },
+  {
+    "case": "hidden_copy_control",
+    "action": "loading",
+    "credit": false,
+    "defaultKey": false,
+    "otherKey": false
+  }
+]

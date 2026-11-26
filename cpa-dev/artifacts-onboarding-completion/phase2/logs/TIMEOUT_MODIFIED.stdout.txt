@@ -1,0 +1,4 @@
+=== RUN   TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff
+--- PASS: TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff (1.40s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	1.493s

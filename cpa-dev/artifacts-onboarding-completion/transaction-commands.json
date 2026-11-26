@@ -1,0 +1,147 @@
+[
+  {
+    "name": "BASELINE",
+    "command": [
+      "D:\\AP\\NodeJs\\node.EXE",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\testdata\\onboarding_completion.test.cjs",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\baseline\\internal\\registerbot\\freeai.go",
+      "--observe"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit_status": 0,
+    "stdout": "[\n  {\n    \"case\": \"survey_without_step_heading\",\n    \"action\": \"onboarding_unknown\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_before_claim\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_credit_success\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"credit_success_before_wallet_refresh\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"resume_optional_tutorial\",\n    \"action\": \"onboarding_test\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"paid_dashboard_with_setup_banner\",\n    \"action\": \"onboarding_entry\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"unpaid_dashboard\",\n    \"action\": \"onboarding_entry\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"default_key_not_first\",\n    \"action\": \"key\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": true\n  },\n  {\n    \"case\": \"truncated_copy_literal\",\n    \"action\": \"loading\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"no_default_key\",\n    \"action\": \"key\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": true\n  },\n  {\n    \"case\": \"hidden_copy_control\",\n    \"action\": \"loading\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  }\n]\n",
+    "stderr": ""
+  },
+  {
+    "name": "MODIFIED",
+    "command": [
+      "D:\\AP\\NodeJs\\node.EXE",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\testdata\\onboarding_completion.test.cjs",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\candidate\\freeai.go",
+      "--observe"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit_status": 0,
+    "stdout": "[\n  {\n    \"case\": \"survey_without_step_heading\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_before_claim\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_credit_success\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"credit_success_before_wallet_refresh\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"resume_optional_tutorial\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"paid_dashboard_with_setup_banner\",\n    \"action\": \"key\",\n    \"credit\": true,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"unpaid_dashboard\",\n    \"action\": \"onboarding_entry\",\n    \"credit\": false,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"default_key_not_first\",\n    \"action\": \"key\",\n    \"credit\": true,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"truncated_copy_literal\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"no_default_key\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"hidden_copy_control\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  }\n]\n",
+    "stderr": ""
+  },
+  {
+    "name": "MODIFIED_ASSERTIONS",
+    "command": [
+      "D:\\AP\\NodeJs\\node.EXE",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\testdata\\onboarding_completion.test.cjs",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\candidate\\freeai.go"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit_status": 0,
+    "stdout": "[\n  {\n    \"case\": \"survey_without_step_heading\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_before_claim\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_credit_success\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"credit_success_before_wallet_refresh\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"resume_optional_tutorial\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"paid_dashboard_with_setup_banner\",\n    \"action\": \"key\",\n    \"credit\": true,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"unpaid_dashboard\",\n    \"action\": \"onboarding_entry\",\n    \"credit\": false,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"default_key_not_first\",\n    \"action\": \"key\",\n    \"credit\": true,\n    \"defaultKey\": true,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"truncated_copy_literal\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"no_default_key\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"hidden_copy_control\",\n    \"action\": \"loading\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  }\n]\nPASS 11 onboarding completion cases\n",
+    "stderr": ""
+  },
+  {
+    "name": "ROLLBACK_EXECUTION",
+    "command": [
+      "D:/AP/Git/bin/bash.exe",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\rollback-check\\freeai.go"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit_status": 0,
+    "stdout": "RESTORED_PRISTINE_BYTES\n",
+    "stderr": ""
+  },
+  {
+    "name": "ROLLBACK",
+    "command": [
+      "D:\\AP\\NodeJs\\node.EXE",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\testdata\\onboarding_completion.test.cjs",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\rollback-check\\freeai.go",
+      "--observe"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit_status": 0,
+    "stdout": "[\n  {\n    \"case\": \"survey_without_step_heading\",\n    \"action\": \"onboarding_unknown\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_before_claim\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"survey_credit_success\",\n    \"action\": \"onboarding_credit\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"credit_success_before_wallet_refresh\",\n    \"action\": \"onboarding_profile\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"resume_optional_tutorial\",\n    \"action\": \"onboarding_test\",\n    \"credit\": true,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"paid_dashboard_with_setup_banner\",\n    \"action\": \"onboarding_entry\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"unpaid_dashboard\",\n    \"action\": \"onboarding_entry\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"default_key_not_first\",\n    \"action\": \"key\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": true\n  },\n  {\n    \"case\": \"truncated_copy_literal\",\n    \"action\": \"loading\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  },\n  {\n    \"case\": \"no_default_key\",\n    \"action\": \"key\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": true\n  },\n  {\n    \"case\": \"hidden_copy_control\",\n    \"action\": \"loading\",\n    \"credit\": false,\n    \"defaultKey\": false,\n    \"otherKey\": false\n  }\n]\n",
+    "stderr": ""
+  },
+  {
+    "name": "IMPORTER_ROLLBACK_EXECUTION",
+    "command": [
+      "D:/AP/Git/bin/bash.exe",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\rollback-check\\registerbot_import.go",
+      "registerbot_import.go"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit_status": 0,
+    "stdout": "RESTORED_PRISTINE_BYTES\n",
+    "stderr": ""
+  },
+  {
+    "name": "IMPORTER_BASELINE",
+    "command": [
+      "go",
+      "test",
+      "-overlay",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\importer-overlay-BASELINE.json",
+      "./internal/api/handlers/management",
+      "-run",
+      "TestRegisterBotVerificationReasoningAtTokenLimit",
+      "-v",
+      "-count=1"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit_status": 1,
+    "stdout": "=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content\n    registerbot_test.go:178: accepted=false want=true error=registerbot: key verification returned no assistant completion\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias\n    registerbot_test.go:178: accepted=false want=true error=registerbot: key verification returned no assistant completion\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_output\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role\n--- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit (0.00s)\n    --- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content (0.00s)\n    --- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_output (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role (0.00s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/api/handlers/management\t0.183s\nFAIL\n",
+    "stderr": ""
+  },
+  {
+    "name": "IMPORTER_MODIFIED",
+    "command": [
+      "go",
+      "test",
+      "-overlay",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\importer-overlay-MODIFIED.json",
+      "./internal/api/handlers/management",
+      "-run",
+      "TestRegisterBotVerificationReasoningAtTokenLimit",
+      "-v",
+      "-count=1"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit_status": 0,
+    "stdout": "=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_output\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role\n--- PASS: TestRegisterBotVerificationReasoningAtTokenLimit (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_output (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role (0.00s)\nPASS\nok  \tgithub.com/router-for-me/CLIProxyAPI/v8/internal/api/handlers/management\t0.177s\n",
+    "stderr": ""
+  },
+  {
+    "name": "IMPORTER_ROLLBACK",
+    "command": [
+      "go",
+      "test",
+      "-overlay",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\importer-overlay-ROLLBACK.json",
+      "./internal/api/handlers/management",
+      "-run",
+      "TestRegisterBotVerificationReasoningAtTokenLimit",
+      "-v",
+      "-count=1"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit_status": 1,
+    "stdout": "=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content\n    registerbot_test.go:178: accepted=false want=true error=registerbot: key verification returned no assistant completion\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias\n    registerbot_test.go:178: accepted=false want=true error=registerbot: key verification returned no assistant completion\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_output\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning\n=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role\n--- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit (0.00s)\n    --- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content (0.00s)\n    --- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_output (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning (0.00s)\n    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role (0.00s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/api/handlers/management\t0.178s\nFAIL\n",
+    "stderr": ""
+  },
+  {
+    "name": "PATCH_RECONSTRUCTION",
+    "command": [
+      "git",
+      "-c",
+      "core.autocrlf=false",
+      "apply",
+      "--unsafe-paths",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\DIFF_FILE.patch"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\patch-check",
+    "exit_status": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "provider": "FreeAi",
+  "keyCount": 6,
+  "existingTestKey": 0,
+  "channelRole": "student",
+  "channelSource": "google"
+}

@@ -1,0 +1,10 @@
+{
+  "version": "8.1.2-registerbot-fix9-autoreg-parallel",
+  "sha256": "96C8C4FF40BF45CE707F584FBA3689BACA79A4D1C2950110C0C874872818A022",
+  "backup": "E:\\LY\\Tool\\CPA\\cpa-dev\\deployment-backups\\autosurvey-parallel-20261125-224036",
+  "pid": "17084",
+  "concurrency": 2,
+  "intervalSeconds": 2,
+  "role": "student",
+  "source": "google"
+}

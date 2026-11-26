@@ -1,0 +1,14 @@
+{
+  "case": "new_default_key",
+  "model": "anthropic/claude-opus-4.7",
+  "keyLength": 46,
+  "keyHint": "sk-…IYfQ",
+  "http": 200,
+  "htmlTitle": "",
+  "errorType": null,
+  "errorCode": null,
+  "errorMessage": "",
+  "completionCount": 1,
+  "role": "assistant",
+  "nonEmptyContent": false
+}

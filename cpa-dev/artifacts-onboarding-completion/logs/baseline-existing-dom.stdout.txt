@@ -1,0 +1,3 @@
+Google identifier, visible password, Workspace consent, and network fixtures passed
+Full Copy key literal accepted; truncated display and copy values rejected
+Required onboarding precedes key capture; promotional text is not credited balance

@@ -1,0 +1,6 @@
+=== RUN   TestFreeAIFreshSurveyBrowser
+    onboarding_browser_test.go:103: fresh survey did not finish: key=false error=registerbot: operator action required
+--- FAIL: TestFreeAIFreshSurveyBrowser (0.46s)
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	0.551s
+FAIL

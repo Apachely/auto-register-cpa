@@ -14,11 +14,11 @@
 /static/management.html
 /logs/
 /registerbot/
-!/registerbot/settings.yaml
+/cpa-dev/deployment-backups/
+/registerbot-bot/config.json
 /registerbot-bot/logs/
 /registerbot-bot/cache.db
 /registerbot-bot/provider.db
-/registerbot-bot/config.json
 /registerbot-bot/bot-core.pid
 /*.pid
 

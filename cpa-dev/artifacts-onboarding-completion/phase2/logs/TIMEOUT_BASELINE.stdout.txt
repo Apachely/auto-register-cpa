@@ -1,0 +1,6 @@
+=== RUN   TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff
+    freeai_test.go:305: ordinary timeout did not close and retry: registerbot: operator action required
+--- FAIL: TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff (1.40s)
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	1.494s
+FAIL

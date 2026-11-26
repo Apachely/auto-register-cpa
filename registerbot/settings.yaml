@@ -2,7 +2,7 @@ enabled: true
 state-dir: E:\LY\Tool\CPA\registerbot
 capture-evidence: true
 gateway:
-    proxy-url: http://127.0.0.1:12460
+    proxy-url: http://127.0.0.1:12450
     auto-discover: true
     verify-exit-ip: true
     exit-ip-url: https://api.ipify.org?format=json
@@ -33,14 +33,12 @@ channels:
       name: FreeAIapikey
       enabled: true
       provider: FreeAi
-      proxy-url: http://127.0.0.1:12460
-      concurrency: 1
+      proxy-url: http://127.0.0.1:12450
+      concurrency: 2
       group: 节点选择
-      rotate-node: true
-      max-per-node: 5
-      node-probe-url: https://api.freeaiapikey.com/v1/models
-      node-probe-timeout-seconds: 8
-      interval-seconds: 45
+      nodes:
+        - "\U0001F1ED\U0001F1F0|香港-IEPL 02"
+      interval-seconds: 2
       step-delay-millis: 900
       max-attempts: 2
       onboarding-role: student

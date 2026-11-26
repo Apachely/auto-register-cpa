@@ -1,0 +1,19 @@
+{
+  "target": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\freeai.go",
+  "baseline_sha256": "02e4069e15bd20a25ff23f6cd93c900f55ad2674b5d4f9c71515170427ea8033",
+  "modified_sha256": "b04b45a4659beab237227bdb364d20a320bce5617e7d628c5e64b65c79ecea56",
+  "rollback_sha256": "02e4069e15bd20a25ff23f6cd93c900f55ad2674b5d4f9c71515170427ea8033",
+  "reconstructed_sha256": "b04b45a4659beab237227bdb364d20a320bce5617e7d628c5e64b65c79ecea56",
+  "supplemental_importer": {
+    "modified_file": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\candidate\\registerbot_import.go",
+    "baseline_sha256": "4cc2d556631778f3230eb714acac1b458f1372553f3b6b62674a9db8c20b258e",
+    "modified_sha256": "3acc054ee328151f4b7bbfa218d0aa642e8dbbc0c5e4f45fa0d9990d7e64e48a",
+    "rollback_sha256": "4cc2d556631778f3230eb714acac1b458f1372553f3b6b62674a9db8c20b258e"
+  },
+  "roles": {
+    "MODIFIED_FILE": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\candidate\\freeai.go",
+    "DIFF_FILE": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\DIFF_FILE.patch",
+    "VERIFICATION": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\VERIFICATION.txt",
+    "ROLLBACK": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh"
+  }
+}

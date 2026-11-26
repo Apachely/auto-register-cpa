@@ -1,0 +1,110 @@
+[
+  {
+    "path": "freeaiapikey.com/setup",
+    "text": "Skip to content\nFreeAIapikey\nDashboard\nChat\nModels\nPricing\nDocs\nLabBETA\nContact\nL\nlarainezamora\nLog out\n\nStep 1 of 5\n\nWelcome, larainezamora\nYour balance\n+$5.00\nNormal $0.00 · Bonus\n$0.00\n1\nAbout you\n2\nYour tool\n3\nTest it\n4\nBonus $5\n5\nPlans\nAnswer two questions, get $5\n\nIt takes two taps. The $5 goes into your balance right away and works with every model. It helps us build what you actually need.\n\nThanks, your answers are saved.\n\nYour network already received the welcome credit on several accounts this month, so this account starts at $0. You can still get $5 by joining our Discord in step 4, or add funds.\n\nContinue\n\nFinish later and go to my dashboard\n\nFreeAIapikey\n\nOne API key for Claude, GPT, Gemini and DeepSeek. Same models, same SDKs, a fraction of the price.\n\nJoin the Discord\nProduct\nPricing\nModels\nWeb chat\nDevelopers\nDocs\nLab\nCost calculator\nEnterprise\nCompany\nAbout\nContact\nPrivacy\nTerms\n\n© 2026 FreeAIapikey.com",
+    "inputs": [
+      {
+        "name": "role",
+        "value": "student",
+        "checked": true
+      },
+      {
+        "name": "role",
+        "value": "indie",
+        "checked": false
+      },
+      {
+        "name": "role",
+        "value": "founder",
+        "checked": false
+      },
+      {
+        "name": "role",
+        "value": "employee",
+        "checked": false
+      },
+      {
+        "name": "role",
+        "value": "researcher",
+        "checked": false
+      },
+      {
+        "name": "role",
+        "value": "exploring",
+        "checked": false
+      },
+      {
+        "name": "source",
+        "value": "google",
+        "checked": true
+      },
+      {
+        "name": "source",
+        "value": "ai",
+        "checked": false
+      },
+      {
+        "name": "source",
+        "value": "youtube",
+        "checked": false
+      },
+      {
+        "name": "source",
+        "value": "instagram",
+        "checked": false
+      },
+      {
+        "name": "source",
+        "value": "reddit",
+        "checked": false
+      },
+      {
+        "name": "source",
+        "value": "x",
+        "checked": false
+      },
+      {
+        "name": "source",
+        "value": "discord",
+        "checked": false
+      },
+      {
+        "name": "source",
+        "value": "github",
+        "checked": false
+      },
+      {
+        "name": "source",
+        "value": "friend",
+        "checked": false
+      },
+      {
+        "name": "source",
+        "value": "other",
+        "checked": false
+      }
+    ],
+    "buttons": [
+      {
+        "text": "",
+        "disabled": false
+      },
+      {
+        "text": "Continue",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "disabled": false
+      }
+    ]
+  }
+]

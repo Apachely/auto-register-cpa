@@ -1,0 +1,86 @@
+[
+  {
+    "path": "accounts.google.com/v3/signin/identifier",
+    "text": "Loading\nSign in with Google\nSign in\nto continue to FreeAIAPIKey\nEmail or phone\nForgot email?\nBefore using this app, you can review FreeAIAPIKey’s Privacy Policy and Terms of Service.\nNext\nCreate account\nEnglish (United States)\nHelp\nPrivacy\nTerms",
+    "inputs": [
+      {
+        "type": "text",
+        "name": "identifier",
+        "id": "identifierId",
+        "hasValue": true,
+        "visible": true
+      },
+      {
+        "type": "password",
+        "name": "hiddenPassword",
+        "id": "",
+        "hasValue": false,
+        "visible": false
+      },
+      {
+        "type": "text",
+        "name": "ca",
+        "id": "ca",
+        "hasValue": false,
+        "visible": false
+      },
+      {
+        "type": "hidden",
+        "name": "ct",
+        "id": "ct",
+        "hasValue": false,
+        "visible": false
+      },
+      {
+        "type": "hidden",
+        "name": "usi",
+        "id": "",
+        "hasValue": true,
+        "visible": false
+      },
+      {
+        "type": "hidden",
+        "name": "domain",
+        "id": "",
+        "hasValue": false,
+        "visible": false
+      },
+      {
+        "type": "hidden",
+        "name": "region",
+        "id": "",
+        "hasValue": true,
+        "visible": false
+      },
+      {
+        "type": "hidden",
+        "name": "",
+        "id": "fidoUserHandle",
+        "hasValue": false,
+        "visible": false
+      }
+    ],
+    "buttons": [
+      {
+        "text": "FreeAIAPIKey",
+        "disabled": false
+      },
+      {
+        "text": "Forgot email?",
+        "disabled": false
+      },
+      {
+        "text": "Next",
+        "disabled": false
+      },
+      {
+        "text": "Create account",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "disabled": false
+      }
+    ]
+  }
+]

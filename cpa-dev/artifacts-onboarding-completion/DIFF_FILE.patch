@@ -1,0 +1,536 @@
+--- a/freeai.go
++++ b/freeai.go
+@@ -51,6 +51,7 @@
+ 	NetworkCode     string `json:"network_code"`
+ 	HumanChallenge  bool   `json:"human_challenge"`
+ 	CreditConfirmed bool   `json:"credit_confirmed"`
++	SurveyCompleted bool   `json:"survey_completed"`
+ }
+ 
+ func normalizeFreeAIPage(page freeAIPage) freeAIPage {
+@@ -71,6 +72,25 @@
+ func googleIdentityHost(raw string) bool {
+ 	parsed, errParse := url.Parse(raw)
+ 	return errParse == nil && parsed.Hostname() == "accounts.google.com" && parsed.Scheme == "https"
++}
++
++func selectFreeAIRadio(ctx context.Context, session *Session, name, value string) error {
++	selector := "input[type=radio][name=" + jsString(name) + "][value=" + jsString(value) + "]"
++	checked := "(function(){var input=document.querySelector(" + jsString(selector) + ");return !!input&&input.checked;})()"
++	if current, errRead := session.Evaluate(ctx, checked, false); errRead == nil && current == true {
++		return nil
++	}
++	if errClick := session.ClickSelector(ctx, "label:has("+selector+")"); errClick != nil {
++		return errClick
++	}
++	current, errRead := session.Evaluate(ctx, checked, false)
++	if errRead != nil {
++		return errRead
++	}
++	if current != true {
++		return errInputValue
++	}
++	return nil
+ }
+ 
+ // Run retains an isolated page on manual handoff so the operator can resolve a
+@@ -126,6 +146,8 @@
+ 	var lastDispatch time.Time
+ 	lastActionIssue := ""
+ 	sawOnboarding, creditConfirmed := false, false
++	surveyCompleted := false
++	claimAttempted := false
+ 	ticker := time.NewTicker(700 * time.Millisecond)
+ 	defer ticker.Stop()
+ 	for {
+@@ -152,9 +174,15 @@
+ 			page.Action = "loading"
+ 		}
+ 		page = normalizeFreeAIPage(page)
++		creditConfirmed = creditConfirmed || page.CreditConfirmed
++		surveyCompleted = surveyCompleted || page.SurveyCompleted || page.CreditConfirmed
++		// The dashboard keeps its optional setup banner after Finish later. A
++		// confirmed survey must not send this same session back into that guide.
++		if page.Action == "onboarding_entry" && surveyCompleted && page.Key != "" {
++			page.Action = "key"
++		}
+ 		if strings.HasPrefix(page.Action, "onboarding_") {
+ 			sawOnboarding = true
+-			creditConfirmed = creditConfirmed || page.CreditConfirmed
+ 		}
+ 		actionPath := ""
+ 		if parsed, errURL := url.Parse(page.URL); errURL == nil {
+@@ -177,11 +205,15 @@
+ 		}
+ 		if page.Action == "key" && freeAIHost(page.URL) && keyPattern.MatchString(page.Key) {
+ 			if sawOnboarding {
++				if !surveyCompleted {
++					task.Report("onboarding_profile_required", "warn", "survey completion was not confirmed; retain the guide before capture")
++					return harvest, ErrManualHandoff
++				}
++				message := "required survey completed; full Default Key captured"
+ 				if !creditConfirmed {
+-					task.Report("onboarding_credit_pending", "warn", "onboarding credit was not confirmed; complete the guide before import")
+-					return harvest, ErrManualHandoff
+-				}
+-				task.Report("onboarding_complete", "info", "onboarding completed and initial $5 credit confirmed")
++					message = "required survey completed; provider did not award welcome credit; full Default Key captured"
++				}
++				task.Report("onboarding_complete", "info", message)
+ 			}
+ 			return Harvest{APIKey: page.Key, Account: task.Account.Email, Node: task.node, ExitIP: task.exitIP, Browser: task.browserLabel(), StartedAt: started, FinishedAt: time.Now()}, nil
+ 		}
+@@ -196,6 +228,11 @@
+ 		if page.Action == "challenge" || page.Action == "blocked" {
+ 			task.Report("manual", "warn", "Google requires operator verification; finish in the retained browser and resume")
+ 			return harvest, ErrManualHandoff
++		}
++		// The submit label/fingerprint changes while the credit request is in
++		// flight. Do not interpret that change as permission to claim again.
++		if page.Action == "onboarding_profile" && claimAttempted {
++			acted = true
+ 		}
+ 		if !acted && errInspect == nil {
+ 			var errAction error
+@@ -203,34 +240,28 @@
+ 			case "onboarding_entry":
+ 				errAction = session.Navigate(acquireCtx, "https://freeaiapikey.com/setup")
+ 			case "onboarding_profile":
+-				if task.Channel.OnboardingRole == "" || task.Channel.OnboardingSource == "" {
+-					task.Report("onboarding_profile_required", "warn", "configure the channel onboarding answers or complete the survey in the retained browser")
++				role, source := task.Channel.onboardingAnswers()
++				errAction = selectFreeAIRadio(acquireCtx, session, "role", role)
++				if errAction == nil {
++					errAction = selectFreeAIRadio(acquireCtx, session, "source", source)
++				}
++				if errAction == nil {
++					claimAttempted = true
++					errAction = session.ClickText(acquireCtx, "Get my $5")
++					if errors.Is(errAction, errControlNotReady) {
++						claimAttempted = false // No input was dispatched; safely wait for the control.
++					}
++				}
++			case "onboarding_credit", "onboarding_tool", "onboarding_test", "onboarding_discord", "onboarding_plans":
++				if !surveyCompleted {
++					task.Report("onboarding_profile_required", "warn", "survey completion has not been confirmed; retain the survey before capture")
+ 					return harvest, ErrManualHandoff
+ 				}
+-				errAction = session.ClickSelector(acquireCtx, `label:has(input[name=role][value="`+task.Channel.OnboardingRole+`"])`)
+-				if errAction == nil {
+-					errAction = session.ClickSelector(acquireCtx, `label:has(input[name=source][value="`+task.Channel.OnboardingSource+`"])`)
+-				}
+-				if errAction == nil {
+-					errAction = session.ClickText(acquireCtx, "Get my $5")
+-				}
+-			case "onboarding_credit", "onboarding_tool", "onboarding_test":
+-				errAction = session.ClickText(acquireCtx, "Continue")
+-			case "onboarding_discord":
+-				if !task.Channel.SkipOptionalDiscord {
+-					task.Report("onboarding_discord", "warn", "optional Discord step awaits the operator; enable its skip preference to continue without linking Discord")
+-					return harvest, ErrManualHandoff
+-				}
+-				errAction = session.ClickText(acquireCtx, "Skip for now")
+-			case "onboarding_plans":
+-				if !creditConfirmed {
+-					task.Report("onboarding_credit_pending", "warn", "initial $5 credit has not been confirmed; onboarding remains incomplete")
+-					return harvest, ErrManualHandoff
+-				}
+-				errAction = session.ClickText(acquireCtx, "Open my dashboard")
++				errAction = session.ClickText(acquireCtx, "Finish later and go to my dashboard", "Open my dashboard")
+ 			case "onboarding_unknown":
+-				task.Report("onboarding_unknown", "warn", "unrecognized onboarding step; continue in the retained browser")
+-				return harvest, ErrManualHandoff
++				// Redirects can expose /setup before its controls are rendered.
++				// Wait within the existing step deadline, not an immediate handoff.
++				errAction = errControlNotReady
+ 			case "email":
+ 				if !googleIdentityHost(page.URL) {
+ 					return harvest, errors.New("registerbot: refusing credentials outside Google identity origin")
+@@ -295,6 +326,12 @@
+ 			}
+ 		}
+ 		if time.Since(lastProgress) >= set.Browser.StepTimeout() {
++			if googleIdentityHost(page.URL) && !page.HumanChallenge && page.Action != "blocked" && page.Action != "challenge" {
++				// A stalled ordinary sign-in page is not an identity challenge.
++				// Close this context and let the queue's bounded retry policy run.
++				task.Report(page.Action, "warn", "sign-in page timed out; restarting this account automatically")
++				return harvest, errors.New("registerbot: ordinary sign-in page timed out")
++			}
+ 			task.Report("manual", "warn", "page did not advance; retained browser is ready for operator continuation")
+ 			return harvest, ErrManualHandoff
+ 		}
+@@ -321,7 +358,7 @@
+ 	case "onboarding_profile":
+ 		return "completing the configured onboarding survey"
+ 	case "onboarding_credit":
+-		return "initial $5 onboarding credit confirmed"
++		return "survey response confirmed; finishing the guide later and opening the dashboard"
+ 	case "onboarding_tool":
+ 		return "reviewing tool connection instructions"
+ 	case "onboarding_test":
+@@ -366,7 +403,7 @@
+  var has=function(s){return Array.from(document.querySelectorAll(s)).some(visible);};
+  var bodyText=document.body?document.body.innerText:'';
+  var text=bodyText.toLowerCase();
+- var host=location.hostname, path=location.pathname, action='loading', key='', networkCode='', creditConfirmed=false;
++ var host=location.hostname, path=location.pathname, action='loading', key='', networkCode='', creditConfirmed=false, surveyCompleted=false;
+  var humanChallenge=has('iframe[src*="recaptcha"],input[name=totpPin],input[name=idvPin]')||text.includes('verify it’s you')||text.includes("verify it's you")||text.includes('2-step verification');
+  var networkMatch=bodyText.match(/\bERR_[A-Z_]+\b/);
+  var chromeError=location.protocol==='chrome-error:'||location.origin==='null'||has('#main-frame-error,.neterror');
+@@ -384,26 +421,37 @@
+   else if(text.includes('choose an account')||text.includes('选择帐号')||text.includes('选择账号')){action='choose_account';}
+   else if(Array.from(document.querySelectorAll('button,[role=button],input[type=submit]')).some(function(e){return visible(e)&&/^(continue|allow|i agree|next|继续|允许|我同意)$/i.test((e.innerText||e.value||'').trim());})){action='consent';}
+  } else if(free){
++  var normal=(bodyText.match(/Normal(?:\s+credits)?\s+\$([0-9,.]+)/i)||[])[1];
++  creditConfirmed=!!normal&&Number(normal.replace(/,/g,''))>=5;
+   if(path==='/setup'||path.startsWith('/setup/')){
+-   var step=(bodyText.match(/Step\s+([1-5])\s+of\s+5/i)||[])[1];
+-   var normal=(bodyText.match(/Normal\s+\$([0-9,.]+)/i)||[])[1];
+-   creditConfirmed=!!normal&&Number(normal.replace(/,/g,''))>=5;
+-   if(step==='1'){action=text.includes('$5.00 is in your balance.')&&creditConfirmed?'onboarding_credit':'onboarding_profile';}
++   var step=(bodyText.match(/\bStep\s*([1-5])\s*of\s*5\b/i)||[])[1];
++   creditConfirmed=creditConfirmed||(has('#surveyDone')&&text.includes('$5.00 is in your balance.'));
++   surveyCompleted=creditConfirmed||(has('#surveyDone')&&text.includes('your answers are saved'));
++   if(surveyCompleted){action='onboarding_credit';}
++   else if(has('#surveySubmit')||has('#surveyForm')||step==='1'){action='onboarding_profile';}
+    else if(step==='2'){action='onboarding_tool';}
+    else if(step==='3'){action='onboarding_test';}
+    else if(step==='4'){action='onboarding_discord';}
+    else if(step==='5'){action='onboarding_plans';}
+    else{action='onboarding_unknown';}
+-  } else if(path.startsWith('/dashboard')&&has('a[href="/setup"]')){action='onboarding_entry';}
+-  else if(path.startsWith('/dashboard')){
++  } else if(path==='/dashboard'||path.startsWith('/dashboard/')){
+    // Display text is truncated to 28 characters followed by an ellipsis. Only
+    // the complete literal passed to the provider's Copy key action is usable.
+    var copies=Array.from(document.querySelectorAll('button[title="Copy key"]')).filter(visible);
+    for(var i=0;i<copies.length;i++){
++    // A dashboard may have several keys. Scope the copy action to the named
++    // Default Key row, never whichever Copy key button happens to be first.
++    var row=copies[i].parentElement, isDefault=false;
++    for(var depth=0;row&&row!==document.body&&depth<5;depth++,row=row.parentElement){
++     if(row.querySelectorAll('button[title="Copy key"]').length>1)break;
++     if(Array.from(row.querySelectorAll('p')).some(function(e){return visible(e)&&/^default key$/i.test((e.innerText||'').trim());})){isDefault=true;break;}
++    }
++    if(!isDefault)continue;
+     var copied=(copies[i].getAttribute('onclick')||'').match(/^\s*copyKey\(\s*(['"])(sk-[A-Za-z0-9_-]{16,509})\1\s*\)\s*;?\s*$/);
+     if(copied){key=copied[2];break;}
+    }
+-   if(key){action='key';}
++   if(has('a[href="/setup"]')&&!creditConfirmed){action='onboarding_entry';}
++   else if(key){action='key';}
+    else if(/show api key|show key|reveal|显示|查看密钥/.test(text)){action='reveal';}
+   } else if(/continue with google|sign in with google|使用 google/.test(text)){action='google';}
+   else if(path!=='/register'&&path!=='/login'){action='dashboard';}
+@@ -413,5 +461,5 @@
+  // query strings, disabled states and transient loading indicators.
+  var signature=Array.from(document.querySelectorAll('h1,h2,[role="heading"],button,[role="button"],input[type="submit"]')).filter(visible).map(function(el){return String(el.innerText||el.value||el.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim().toLowerCase();}).join('|');
+  var hash=2166136261;for(var s=0;s<signature.length;s++){hash=Math.imul(hash^signature.charCodeAt(s),16777619);}
+- return {url:location.href,action:action,page_state:(hash>>>0).toString(16),key:key,network_code:networkCode,human_challenge:humanChallenge,credit_confirmed:creditConfirmed};
++ return {url:location.href,action:action,page_state:(hash>>>0).toString(16),key:key,network_code:networkCode,human_challenge:humanChallenge,credit_confirmed:creditConfirmed,survey_completed:surveyCompleted};
+ })()`
+--- a/registerbot_import.go
++++ b/registerbot_import.go
+@@ -212,14 +212,29 @@
+ 	}
+ 	var completion struct {
+ 		Choices []struct {
+-			Message struct {
+-				Role    string `json:"role"`
+-				Content string `json:"content"`
++			FinishReason string `json:"finish_reason"`
++			Message      struct {
++				Role             string `json:"role"`
++				Content          string `json:"content"`
++				ReasoningContent string `json:"reasoning_content"`
++				Reasoning        string `json:"reasoning"`
+ 			} `json:"message"`
+ 		} `json:"choices"`
++		Usage struct {
++			CompletionTokens int `json:"completion_tokens"`
++		} `json:"usage"`
+ 		Error any `json:"error"`
+ 	}
+-	if errDecode := json.Unmarshal(data, &completion); errDecode != nil || completion.Error != nil || len(completion.Choices) == 0 || completion.Choices[0].Message.Role != "assistant" || strings.TrimSpace(completion.Choices[0].Message.Content) == "" {
++	if errDecode := json.Unmarshal(data, &completion); errDecode != nil || completion.Error != nil || len(completion.Choices) == 0 || completion.Choices[0].Message.Role != "assistant" {
++		return errors.New("registerbot: key verification returned no assistant completion")
++	}
++	choice := completion.Choices[0]
++	// The five-token probe can be exhausted by reasoning before the model
++	// emits final content. Actual reasoning output plus a token-limited finish
++	// and nonzero generated tokens still proves authenticated inference.
++	reasoningAtLimit := choice.FinishReason == "length" && completion.Usage.CompletionTokens > 0 &&
++		(strings.TrimSpace(choice.Message.ReasoningContent) != "" || strings.TrimSpace(choice.Message.Reasoning) != "")
++	if strings.TrimSpace(choice.Message.Content) == "" && !reasoningAtLimit {
+ 		return errors.New("registerbot: key verification returned no assistant completion")
+ 	}
+ 	return nil
+@@ -252,11 +267,7 @@
+ 	if errRead != nil || snapshot.status != http.StatusOK {
+ 		return errors.New("registerbot: provider configuration unavailable")
+ 	}
+-	etag := snapshot.header.Get("ETag")
+-	if len(etag) != 66 || etag[0] != '"' || etag[65] != '"' {
+-		return errors.New("registerbot: provider configuration ETag missing")
+-	}
+-	body, endpoint, present, errPlan := registerBotImportPlan(snapshot.body.Bytes(), channel, harvest.APIKey)
++	_, endpoint, _, errPlan := registerBotImportPlan(snapshot.body.Bytes(), channel, harvest.APIKey)
+ 	if errPlan != nil {
+ 		return errPlan
+ 	}
+@@ -269,8 +280,32 @@
+ 	if errVerify := verifyRegisterBotKey(ctx, endpoint, channel.ProxyURL, harvest.APIKey, model); errVerify != nil {
+ 		return errVerify
+ 	}
++	return h.commitRegisterBotKey(ctx, channel, harvest.APIKey, endpoint, model)
++}
++
++// Network verification stays parallel. Only the fresh read/merge/CAS/readback
++// transaction is serialized, so concurrent keys cannot overwrite one another.
++func (h *Handler) commitRegisterBotKey(ctx context.Context, channel registerbot.ChannelSettings, key, verifiedEndpoint string, verifiedModel registerBotProbeModel) error {
++	h.registerBotCommitMu.Lock()
++	defer h.registerBotCommitMu.Unlock()
+ 	if errContext := ctx.Err(); errContext != nil {
+ 		return errContext
++	}
++	snapshot, errRead := h.registerBotConfigRequest(ctx, http.MethodGet, nil, "")
++	if errRead != nil || snapshot.status != http.StatusOK {
++		return errors.New("registerbot: provider configuration unavailable")
++	}
++	etag := snapshot.header.Get("ETag")
++	if len(etag) != 66 || etag[0] != '"' || etag[65] != '"' {
++		return errors.New("registerbot: provider configuration ETag missing")
++	}
++	body, endpoint, present, errPlan := registerBotImportPlan(snapshot.body.Bytes(), channel, key)
++	if errPlan != nil {
++		return errPlan
++	}
++	model, errModel := registerBotVerificationModel(snapshot.body.Bytes(), channel)
++	if errModel != nil || model != verifiedModel || endpoint != verifiedEndpoint {
++		return errors.New("registerbot: provider configuration conflict after key verification")
+ 	}
+ 	if !present {
+ 		response, errWrite := h.registerBotConfigRequest(ctx, http.MethodPut, body, etag)
+@@ -290,7 +325,7 @@
+ 	if errConfirm != nil || confirmation.status != http.StatusOK {
+ 		return errors.New("registerbot: provider readback failed")
+ 	}
+-	_, confirmedEndpoint, confirmed, errPlan := registerBotImportPlan(confirmation.body.Bytes(), channel, harvest.APIKey)
++	_, confirmedEndpoint, confirmed, errPlan := registerBotImportPlan(confirmation.body.Bytes(), channel, key)
+ 	if errPlan != nil || !confirmed || confirmedEndpoint != endpoint {
+ 		return errors.New("registerbot: provider write unconfirmed")
+ 	}
+--- a/settings.go
++++ b/settings.go
+@@ -146,7 +146,7 @@
+ 	StartURL string `yaml:"start-url,omitempty" json:"start_url,omitempty"`
+ 	// ManualMode keeps the batch running without the gateway or a browser.
+ 	ManualMode bool `yaml:"manual-mode,omitempty" json:"manual_mode,omitempty"`
+-	// Onboarding answers are operator-supplied facts, never inferred from an account.
++	// Onboarding answers use the operator-requested defaults when omitted.
+ 	OnboardingRole      string `yaml:"onboarding-role,omitempty" json:"onboarding_role,omitempty"`
+ 	OnboardingSource    string `yaml:"onboarding-source,omitempty" json:"onboarding_source,omitempty"`
+ 	SkipOptionalDiscord bool   `yaml:"skip-optional-discord,omitempty" json:"skip_optional_discord,omitempty"`
+@@ -254,19 +254,32 @@
+ // DefaultFreeAIChannel is the first shipped channel kind.
+ func DefaultFreeAIChannel() ChannelSettings {
+ 	return ChannelSettings{
+-		ID:              "freeaiapikey",
+-		Kind:            ChannelKindFreeAIApiKey,
+-		Name:            "FreeAIapikey",
+-		Enabled:         true,
+-		Provider:        "FreeAi",
+-		ProxyURL:        "http://127.0.0.1:12450",
+-		Concurrency:     1,
+-		Group:           "节点选择",
+-		RotateNode:      true,
+-		IntervalSeconds: 45,
+-		StepDelayMillis: 900,
+-		MaxAttempts:     2,
+-	}
++		ID:               "freeaiapikey",
++		Kind:             ChannelKindFreeAIApiKey,
++		Name:             "FreeAIapikey",
++		Enabled:          true,
++		Provider:         "FreeAi",
++		ProxyURL:         "http://127.0.0.1:12450",
++		Concurrency:      2,
++		Group:            "节点选择",
++		RotateNode:       false,
++		IntervalSeconds:  2,
++		StepDelayMillis:  900,
++		MaxAttempts:      2,
++		OnboardingRole:   "student",
++		OnboardingSource: "google",
++	}
++}
++
++func (c ChannelSettings) onboardingAnswers() (string, string) {
++	role, source := strings.TrimSpace(c.OnboardingRole), strings.TrimSpace(c.OnboardingSource)
++	if role == "" {
++		role = "student"
++	}
++	if source == "" {
++		source = "google"
++	}
++	return role, source
+ }
+ 
+ // Normalize fills defaults and clamps unsafe values.
+@@ -342,6 +355,9 @@
+ 		}
+ 		if ch.Kind == "" {
+ 			ch.Kind = ChannelKindFreeAIApiKey
++		}
++		if ch.Kind == ChannelKindFreeAIApiKey {
++			ch.OnboardingRole, ch.OnboardingSource = ch.onboardingAnswers()
+ 		}
+ 		if ch.Name == "" {
+ 			ch.Name = ch.ID
+--- a/gateway.go
++++ b/gateway.go
+@@ -32,6 +32,9 @@
+ 	mu            sync.Mutex
+ 	proxyClient   *http.Client
+ 	leaseChanged  chan struct{}
++	leaseRoute    string
++	leaseReady    bool
++	leaseResult   PinResult
+ 	rotation      map[string]int
+ 	controllerURL string
+ 	controllerAt  time.Time
+@@ -40,7 +43,7 @@
+ 	checkedAt     time.Time
+ 	lastStatus    Status
+ 	groups        map[string]Group
+-	leases        map[string]lease  // group|node -> holder
++	leases        map[string]lease  // group|holder -> active account
+ 	pinState      map[string]string // group -> node pinned by this process
+ }
+ 
+@@ -578,25 +581,48 @@
+ 	return false
+ }
+ 
+-// Acquire pins a node for a channel, honouring the configured share mode.
+-//
+-// lease: one node per channel at a time, serialised per group.
+-// per_channel: every channel keeps its own group, no contention.
+-// shared: all channels accept the same pinned node.
++// Acquire shares an already confirmed fixed route across concurrent accounts.
++// Route changes remain exclusive: a single forwarding port cannot use two
++// selected nodes simultaneously, regardless of the configured share-mode label.
+ func (g *Gateway) Acquire(ctx context.Context, channel ChannelSettings, holder string) (PinResult, error) {
+ 	set := g.snapshotSettings()
+ 	if channel.ManualMode || !set.Enabled {
+ 		return PinResult{Mode: g.Mode(), Degraded: "gateway skipped by channel settings"}, nil
+ 	}
+-	// A single forwarding port cannot promise simultaneous per-channel exits.
+-	// Hold an exclusive selector lease for the complete credential transaction.
+ 	key := channel.Group + "|" + holder
++	var mode, route string
++	var pool []string
+ 	for {
++		if errContext := ctx.Err(); errContext != nil {
++			return PinResult{}, errContext
++		}
++		mode, pool = g.Mode(), g.NodePool(channel)
++		route = ""
++		if mode != GatewayModeController {
++			route = "forwarding:" + g.ProxyURL()
++		} else if !channel.RotateNode {
++			node := "<current>"
++			if len(pool) > 0 {
++				node = pool[0]
++			}
++			route = channel.Group + "\x00" + node
++		}
+ 		g.mu.Lock()
++		if g.mode != mode {
++			g.mu.Unlock()
++			continue
++		}
+ 		if len(g.leases) == 0 {
+ 			g.leases[key] = lease{channel: channel.ID, at: time.Now()}
++			g.leaseRoute, g.leaseReady = route, false
+ 			g.mu.Unlock()
+ 			break
++		}
++		if route != "" && route == g.leaseRoute && g.leaseReady {
++			g.leases[key] = lease{channel: channel.ID, at: time.Now()}
++			result := g.leaseResult
++			g.mu.Unlock()
++			return result, nil
+ 		}
+ 		changed := g.leaseChanged
+ 		g.mu.Unlock()
+@@ -606,25 +632,36 @@
+ 		case <-changed:
+ 		}
+ 	}
+-	if g.Mode() != GatewayModeController {
+-		return PinResult{Mode: g.Mode(), Degraded: "controller unavailable; no exclusive exit guarantee"}, nil
+-	}
+-	pool := g.NodePool(channel)
++	finish := func(result PinResult, errPin error) (PinResult, error) {
++		if errPin != nil {
++			g.Release(channel.Group, holder)
++			return result, errPin
++		}
++		g.mu.Lock()
++		g.leaseResult, g.leaseReady = result, true
++		close(g.leaseChanged)
++		g.leaseChanged = make(chan struct{})
++		g.mu.Unlock()
++		return result, nil
++	}
++	if mode != GatewayModeController {
++		return finish(PinResult{Mode: mode, Degraded: "controller unavailable; shared forwarding retained"}, nil)
++	}
+ 	if len(pool) == 0 {
+-		return PinResult{Group: channel.Group, Mode: g.Mode(), Degraded: "no selectable nodes; current proxy route retained"}, nil
+-	}
+-	g.mu.Lock()
+-	index := g.rotation[channel.ID]
++		return finish(PinResult{Group: channel.Group, Mode: mode, Degraded: "no selectable nodes; current proxy route retained"}, nil)
++	}
++	g.mu.Lock()
++	index := 0
++	if channel.RotateNode {
++		index = g.rotation[channel.ID]
++	}
+ 	chosen := pool[index%len(pool)]
+ 	if channel.RotateNode {
+ 		g.rotation[channel.ID] = index + 1
+ 	}
+ 	g.mu.Unlock()
+ 	result, errPin := g.Pin(ctx, channel.Group, chosen)
+-	if errPin != nil {
+-		g.Release(channel.Group, holder)
+-	}
+-	return result, errPin
++	return finish(result, errPin)
+ }
+ 
+ // Release keeps the selected exit stable until every operation of the task ends.
+@@ -634,6 +671,10 @@
+ 	key := group + "|" + holder
+ 	if _, exists := g.leases[key]; exists {
+ 		delete(g.leases, key)
++		if len(g.leases) == 0 {
++			g.leaseReady = false
++			g.leaseRoute = ""
++		}
+ 		close(g.leaseChanged)
+ 		g.leaseChanged = make(chan struct{})
+ 	}
+--- a/handler.go
++++ b/handler.go
+@@ -67,6 +67,7 @@
+ 	v8AuthUploadMu          sync.Mutex
+ 	pluginLoginSaveMu       sync.Mutex
+ 	registerBotMu           sync.Mutex
++	registerBotCommitMu     sync.Mutex
+ 	registerBot             *registerbot.Engine
+ 	registerBotClosed       bool
+ }

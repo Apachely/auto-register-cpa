@@ -1,0 +1,16 @@
+{
+  "runId": "d7e4bd58-1f17-430f-ac46-c6879108c9e3",
+  "status": "done",
+  "done": 1,
+  "pendingWrite": 0,
+  "keyHint": "sk-…IYfQ",
+  "keyLength": 46,
+  "keyCount": 7,
+  "existingKeysUnchanged": true,
+  "otherProviderFieldsUnchanged": true,
+  "role": "student",
+  "source": "google",
+  "deployedVersion": "8.1.2-registerbot-fix6-onboarding",
+  "deployedSHA256": "610EDDF54CE87DD8E5A7F5F78319B51F11B8F8BA06008112537EC9BCEE9BAEC7",
+  "pid": 26460
+}

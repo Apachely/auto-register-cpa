@@ -1,0 +1,11 @@
+=== RUN   TestFreeAIFreshSurveyBrowser
+    onboarding_browser_test.go:19: PASS real browsers: parallel=1 claims=1 dashboards=1; delayed survey -> Student -> Google search -> Finish later -> distinct complete Default Keys; no manual input or provider network
+--- PASS: TestFreeAIFreshSurveyBrowser (3.98s)
+=== RUN   TestFreeAIParallelSurveyBrowser
+    onboarding_browser_test.go:23: PASS real browsers: parallel=2 claims=2 dashboards=2; delayed survey -> Student -> Google search -> Finish later -> distinct complete Default Keys; no manual input or provider network
+--- PASS: TestFreeAIParallelSurveyBrowser (4.84s)
+=== RUN   TestEngineBatchReachesConfiguredConcurrencyThroughGateway
+    parallel_test.go:180: 3 input accounts completed; 2 simultaneous drivers through the real gateway; concurrency ceiling respected
+--- PASS: TestEngineBatchReachesConfiguredConcurrencyThroughGateway (0.04s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	8.942s

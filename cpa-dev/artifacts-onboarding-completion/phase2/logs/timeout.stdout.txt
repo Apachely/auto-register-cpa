@@ -1,0 +1,28 @@
+=== RUN   TestGatewaySelectorLeaseCoversCompleteAccount
+--- PASS: TestGatewaySelectorLeaseCoversCompleteAccount (0.00s)
+=== RUN   TestGatewayControllerCannotHideFailedForwardingPlane
+--- PASS: TestGatewayControllerCannotHideFailedForwardingPlane (0.00s)
+=== RUN   TestGatewayControllerCandidatesPreferConfiguredPort
+--- PASS: TestGatewayControllerCandidatesPreferConfiguredPort (0.00s)
+=== RUN   TestFreeAIPasswordTransitionDoesNotTriggerHumanVerification
+=== RUN   TestFreeAIPasswordTransitionDoesNotTriggerHumanVerification/password_transition
+=== RUN   TestFreeAIPasswordTransitionDoesNotTriggerHumanVerification/password_captcha
+=== RUN   TestFreeAIPasswordTransitionDoesNotTriggerHumanVerification/totp_challenge
+=== RUN   TestFreeAIPasswordTransitionDoesNotTriggerHumanVerification/untrusted_origin
+--- PASS: TestFreeAIPasswordTransitionDoesNotTriggerHumanVerification (0.00s)
+    --- PASS: TestFreeAIPasswordTransitionDoesNotTriggerHumanVerification/password_transition (0.00s)
+    --- PASS: TestFreeAIPasswordTransitionDoesNotTriggerHumanVerification/password_captcha (0.00s)
+    --- PASS: TestFreeAIPasswordTransitionDoesNotTriggerHumanVerification/totp_challenge (0.00s)
+    --- PASS: TestFreeAIPasswordTransitionDoesNotTriggerHumanVerification/untrusted_origin (0.00s)
+=== RUN   TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff
+--- PASS: TestFreeAIOrdinarySignInStallRetriesWithoutManualHandoff (1.40s)
+=== RUN   TestGatewayFixedRouteAllowsParallelAccounts
+    parallel_test.go:89: two accounts share one confirmed fixed route; incompatible routes wait until both release
+--- PASS: TestGatewayFixedRouteAllowsParallelAccounts (0.00s)
+=== RUN   TestGatewayDegradedForwardingAllowsParallelAccounts
+--- PASS: TestGatewayDegradedForwardingAllowsParallelAccounts (0.00s)
+=== RUN   TestEngineBatchReachesConfiguredConcurrencyThroughGateway
+    parallel_test.go:180: 3 input accounts completed; 2 simultaneous drivers through the real gateway; concurrency ceiling respected
+--- PASS: TestEngineBatchReachesConfiguredConcurrencyThroughGateway (0.03s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	1.543s

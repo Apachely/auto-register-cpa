@@ -1,0 +1,5 @@
+=== RUN   TestFreeAIFreshSurveyBrowser
+    onboarding_browser_test.go:108: PASS real browser: delayed new survey -> Student -> Google search -> one claim -> Finish later -> complete Default Key; no manual input or provider network
+--- PASS: TestFreeAIFreshSurveyBrowser (3.98s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	4.072s

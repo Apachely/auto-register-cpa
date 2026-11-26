@@ -1,0 +1,19 @@
+{
+  "id": "freeaiapikey",
+  "kind": "freeaiapikey",
+  "name": "FreeAIapikey",
+  "enabled": true,
+  "provider": "FreeAi",
+  "proxy_url": "http://127.0.0.1:12450",
+  "concurrency": 1,
+  "group": "节点选择",
+  "nodes": [
+    "🇭🇰|香港-IEPL 02"
+  ],
+  "interval_seconds": 45,
+  "step_delay_millis": 900,
+  "max_attempts": 2,
+  "onboarding_role": "student",
+  "onboarding_source": "google",
+  "skip_optional_discord": true
+}

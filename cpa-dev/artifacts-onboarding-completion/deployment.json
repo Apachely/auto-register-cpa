@@ -1,0 +1,10 @@
+{
+  "backup": "E:\\LY\\Tool\\CPA\\cpa-dev\\deployment-backups\\registerbot-onboarding-20261125-193030",
+  "deployed": "E:\\LY\\Tool\\CPA\\cli-proxy-api.exe",
+  "sha256": "610EDDF54CE87DD8E5A7F5F78319B51F11B8F8BA06008112537EC9BCEE9BAEC7",
+  "version": "8.1.2-registerbot-fix6-onboarding",
+  "role": "student",
+  "source": "google",
+  "newPid": "26460",
+  "firstCopyError": "File remained mapped immediately after Stop-Process; exit 1; verified no process before retry"
+}

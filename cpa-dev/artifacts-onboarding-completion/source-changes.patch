@@ -1,0 +1,461 @@
+--- a/internal/registerbot/freeai.go
++++ b/internal/registerbot/freeai.go
+@@ -126,6 +126,7 @@
+ 	var lastDispatch time.Time
+ 	lastActionIssue := ""
+ 	sawOnboarding, creditConfirmed := false, false
++	claimAttempted := false
+ 	ticker := time.NewTicker(700 * time.Millisecond)
+ 	defer ticker.Stop()
+ 	for {
+@@ -152,9 +153,14 @@
+ 			page.Action = "loading"
+ 		}
+ 		page = normalizeFreeAIPage(page)
++		creditConfirmed = creditConfirmed || page.CreditConfirmed
++		// The dashboard keeps its optional setup banner after Finish later. A
++		// confirmed survey must not send this same session back into that guide.
++		if page.Action == "onboarding_entry" && creditConfirmed && page.Key != "" {
++			page.Action = "key"
++		}
+ 		if strings.HasPrefix(page.Action, "onboarding_") {
+ 			sawOnboarding = true
+-			creditConfirmed = creditConfirmed || page.CreditConfirmed
+ 		}
+ 		actionPath := ""
+ 		if parsed, errURL := url.Parse(page.URL); errURL == nil {
+@@ -196,6 +202,11 @@
+ 		if page.Action == "challenge" || page.Action == "blocked" {
+ 			task.Report("manual", "warn", "Google requires operator verification; finish in the retained browser and resume")
+ 			return harvest, ErrManualHandoff
++		}
++		// The submit label/fingerprint changes while the credit request is in
++		// flight. Do not interpret that change as permission to claim again.
++		if page.Action == "onboarding_profile" && claimAttempted {
++			acted = true
+ 		}
+ 		if !acted && errInspect == nil {
+ 			var errAction error
+@@ -212,22 +223,18 @@
+ 					errAction = session.ClickSelector(acquireCtx, `label:has(input[name=source][value="`+task.Channel.OnboardingSource+`"])`)
+ 				}
+ 				if errAction == nil {
++					claimAttempted = true
+ 					errAction = session.ClickText(acquireCtx, "Get my $5")
+-				}
+-			case "onboarding_credit", "onboarding_tool", "onboarding_test":
+-				errAction = session.ClickText(acquireCtx, "Continue")
+-			case "onboarding_discord":
+-				if !task.Channel.SkipOptionalDiscord {
+-					task.Report("onboarding_discord", "warn", "optional Discord step awaits the operator; enable its skip preference to continue without linking Discord")
++					if errors.Is(errAction, errControlNotReady) {
++						claimAttempted = false // No input was dispatched; safely wait for the control.
++					}
++				}
++			case "onboarding_credit", "onboarding_tool", "onboarding_test", "onboarding_discord", "onboarding_plans":
++				if !creditConfirmed {
++					task.Report("onboarding_credit_pending", "warn", "initial $5 credit has not been confirmed; retain the survey before import")
+ 					return harvest, ErrManualHandoff
+ 				}
+-				errAction = session.ClickText(acquireCtx, "Skip for now")
+-			case "onboarding_plans":
+-				if !creditConfirmed {
+-					task.Report("onboarding_credit_pending", "warn", "initial $5 credit has not been confirmed; onboarding remains incomplete")
+-					return harvest, ErrManualHandoff
+-				}
+-				errAction = session.ClickText(acquireCtx, "Open my dashboard")
++				errAction = session.ClickText(acquireCtx, "Finish later and go to my dashboard", "Open my dashboard")
+ 			case "onboarding_unknown":
+ 				task.Report("onboarding_unknown", "warn", "unrecognized onboarding step; continue in the retained browser")
+ 				return harvest, ErrManualHandoff
+@@ -321,7 +328,7 @@
+ 	case "onboarding_profile":
+ 		return "completing the configured onboarding survey"
+ 	case "onboarding_credit":
+-		return "initial $5 onboarding credit confirmed"
++		return "initial $5 credit confirmed; finishing the guide later and opening the dashboard"
+ 	case "onboarding_tool":
+ 		return "reviewing tool connection instructions"
+ 	case "onboarding_test":
+@@ -384,26 +391,36 @@
+   else if(text.includes('choose an account')||text.includes('选择帐号')||text.includes('选择账号')){action='choose_account';}
+   else if(Array.from(document.querySelectorAll('button,[role=button],input[type=submit]')).some(function(e){return visible(e)&&/^(continue|allow|i agree|next|继续|允许|我同意)$/i.test((e.innerText||e.value||'').trim());})){action='consent';}
+  } else if(free){
++  var normal=(bodyText.match(/Normal(?:\s+credits)?\s+\$([0-9,.]+)/i)||[])[1];
++  creditConfirmed=!!normal&&Number(normal.replace(/,/g,''))>=5;
+   if(path==='/setup'||path.startsWith('/setup/')){
+    var step=(bodyText.match(/Step\s+([1-5])\s+of\s+5/i)||[])[1];
+-   var normal=(bodyText.match(/Normal\s+\$([0-9,.]+)/i)||[])[1];
+-   creditConfirmed=!!normal&&Number(normal.replace(/,/g,''))>=5;
+-   if(step==='1'){action=text.includes('$5.00 is in your balance.')&&creditConfirmed?'onboarding_credit':'onboarding_profile';}
++   creditConfirmed=creditConfirmed||(has('#surveyDone')&&text.includes('$5.00 is in your balance.'));
++   if(creditConfirmed){action='onboarding_credit';}
++   else if(has('#surveyForm')||step==='1'){action='onboarding_profile';}
+    else if(step==='2'){action='onboarding_tool';}
+    else if(step==='3'){action='onboarding_test';}
+    else if(step==='4'){action='onboarding_discord';}
+    else if(step==='5'){action='onboarding_plans';}
+    else{action='onboarding_unknown';}
+-  } else if(path.startsWith('/dashboard')&&has('a[href="/setup"]')){action='onboarding_entry';}
+-  else if(path.startsWith('/dashboard')){
++  } else if(path==='/dashboard'||path.startsWith('/dashboard/')){
+    // Display text is truncated to 28 characters followed by an ellipsis. Only
+    // the complete literal passed to the provider's Copy key action is usable.
+    var copies=Array.from(document.querySelectorAll('button[title="Copy key"]')).filter(visible);
+    for(var i=0;i<copies.length;i++){
++    // A dashboard may have several keys. Scope the copy action to the named
++    // Default Key row, never whichever Copy key button happens to be first.
++    var row=copies[i].parentElement, isDefault=false;
++    for(var depth=0;row&&row!==document.body&&depth<5;depth++,row=row.parentElement){
++     if(row.querySelectorAll('button[title="Copy key"]').length>1)break;
++     if(Array.from(row.querySelectorAll('p')).some(function(e){return visible(e)&&/^default key$/i.test((e.innerText||'').trim());})){isDefault=true;break;}
++    }
++    if(!isDefault)continue;
+     var copied=(copies[i].getAttribute('onclick')||'').match(/^\s*copyKey\(\s*(['"])(sk-[A-Za-z0-9_-]{16,509})\1\s*\)\s*;?\s*$/);
+     if(copied){key=copied[2];break;}
+    }
+-   if(key){action='key';}
++   if(has('a[href="/setup"]')&&!creditConfirmed){action='onboarding_entry';}
++   else if(key){action='key';}
+    else if(/show api key|show key|reveal|显示|查看密钥/.test(text)){action='reveal';}
+   } else if(/continue with google|sign in with google|使用 google/.test(text)){action='google';}
+   else if(path!=='/register'&&path!=='/login'){action='dashboard';}
+--- a/internal/registerbot/freeai_test.go
++++ b/internal/registerbot/freeai_test.go
+@@ -156,7 +156,7 @@
+ 	}
+ }
+ 
+-func TestFreeAIOnboardingRequiresAnswersCreditAndDiscordPreference(t *testing.T) {
++func TestFreeAIOnboardingRequiresAnswersAndConfirmedCredit(t *testing.T) {
+ 	for _, stage := range []string{"onboarding_profile", "onboarding_plans", "onboarding_discord", "onboarding_unknown"} {
+ 		t.Run(stage, func(t *testing.T) {
+ 			client := newFreeAITestCDP(t, func(request cdpMessage) map[string]any {
+@@ -177,3 +177,102 @@
+ 		})
+ 	}
+ }
++
++func TestFreeAIOnboardingFastPath(t *testing.T) {
++	key := "sk-" + strings.Repeat("A", 43)
++	var actions []string
++	claimCount, finishCount, pendingPolls := 0, 0, 0
++	pendingClick := ""
++	client := newFreeAITestCDP(t, func(request cdpMessage) map[string]any {
++		value := func(v any) map[string]any { return map[string]any{"result": map[string]any{"value": v}} }
++		switch request.Method {
++		case "Runtime.evaluate":
++			expression, _ := request.Params["expression"].(string)
++			if expression == freeAIInspectScript {
++				page := freeAIPage{URL: "https://freeaiapikey.com/setup", Action: "onboarding_profile", PageState: "survey"}
++				if claimCount > 0 {
++					pendingPolls++
++					// Label changes and a transient DOM redraw must not submit twice.
++					page.PageState = strings.Repeat("pending", pendingPolls)
++					if pendingPolls >= 3 {
++						page.Action, page.CreditConfirmed = "onboarding_credit", true
++					}
++				}
++				if finishCount > 0 {
++					// Even if the wallet has not refreshed, this session already
++					// observed credit confirmation before clicking Finish later.
++					page = freeAIPage{URL: "https://freeaiapikey.com/dashboard", Action: "onboarding_entry", Key: key}
++				}
++				return value(page)
++			}
++			if strings.HasPrefix(expression, "cpaPrepareSelector(") {
++				switch {
++				case strings.Contains(expression, "name=role") && strings.Contains(expression, "student"):
++					pendingClick = "Student"
++				case strings.Contains(expression, "name=source") && strings.Contains(expression, "google"):
++					pendingClick = "Google search"
++				default:
++					t.Errorf("unexpected survey selector: %s", expression)
++				}
++				return value(map[string]any{"x": 10, "y": 10})
++			}
++			if strings.HasPrefix(expression, "cpaFindButton(") {
++				switch {
++				case strings.Contains(expression, "Get my $5"):
++					pendingClick = "Get my $5"
++				case strings.Contains(expression, "Finish later and go to my dashboard"):
++					pendingClick = "Finish later and go to my dashboard"
++				default:
++					t.Errorf("unexpected tutorial action: %s", expression)
++				}
++				return value(map[string]any{"x": 10, "y": 10})
++			}
++		case "Input.dispatchMouseEvent":
++			if request.Params["type"] == "mouseReleased" {
++				actions = append(actions, pendingClick)
++				switch pendingClick {
++				case "Get my $5":
++					claimCount++
++				case "Finish later and go to my dashboard":
++					finishCount++
++				}
++			}
++		case "Page.navigate":
++			t.Error("completed survey was sent back to setup")
++		}
++		return map[string]any{}
++	})
++	task := newFreeAITestTask(t)
++	task.Channel.OnboardingRole, task.Channel.OnboardingSource = "student", "google"
++	task.session = &Session{client: client, sessionID: "session", targetID: "target", contextID: "context"}
++	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
++	defer cancel()
++	harvest, err := NewFreeAIDriver(nil).Run(ctx, task)
++	if err != nil || harvest.APIKey != key {
++		t.Fatalf("harvest valid=%v error=%v", harvest.APIKey == key, err)
++	}
++	want := "Student|Google search|Get my $5|Finish later and go to my dashboard"
++	if strings.Join(actions, "|") != want || claimCount != 1 || finishCount != 1 {
++		t.Fatalf("actions=%v claim=%d finish=%d", actions, claimCount, finishCount)
++	}
++	t.Log("Student -> Google search -> Get my $5 (once) -> Finish later -> full Default Key; no setup loop")
++}
++
++func TestFreeAIExistingPaidDashboardDoesNotReopenSetup(t *testing.T) {
++	key := "sk-" + strings.Repeat("A", 43)
++	client := newFreeAITestCDP(t, func(request cdpMessage) map[string]any {
++		if request.Method == "Runtime.evaluate" {
++			return map[string]any{"result": map[string]any{"value": freeAIPage{URL: "https://freeaiapikey.com/dashboard", Action: "key", CreditConfirmed: true, Key: key}}}
++		}
++		if request.Method == "Page.navigate" || request.Method == "Input.dispatchMouseEvent" {
++			t.Error("ready dashboard must not repeat onboarding")
++		}
++		return map[string]any{}
++	})
++	task := newFreeAITestTask(t)
++	task.session = &Session{client: client, sessionID: "session", targetID: "target", contextID: "context"}
++	harvest, err := NewFreeAIDriver(nil).Run(context.Background(), task)
++	if err != nil || harvest.APIKey != key {
++		t.Fatalf("harvest valid=%v error=%v", harvest.APIKey == key, err)
++	}
++}
+--- a/internal/registerbot/testdata/google_identifier.test.cjs
++++ b/internal/registerbot/testdata/google_identifier.test.cjs
+@@ -85,6 +85,8 @@
+ const fullKey = 'sk-' + 'A'.repeat(43);
+ const shortened = fullKey.slice(0, 28) + '…';
+ const copy = Object.assign(field('copy-key', '', 'button'), {tagName:'BUTTON', title:'Copy key'});
++const defaultLabel = Object.assign(field('default-label','',''), {tagName:'P', innerText:'Default Key'});
++copy.parentElement = {querySelectorAll: selector => selector === 'p' ? [defaultLabel] : selector === 'button[title="Copy key"]' ? [copy] : [], parentElement:null};
+ copy.setAttribute('onclick', "copyKey('" + fullKey + "')");
+ const dashboard = makeContext([copy], 'API Keys\nDefault Key\n' + shortened, 'https://freeaiapikey.com/dashboard');
+ assert.equal(vm.runInContext(inspect, dashboard).key, fullKey);
+@@ -98,15 +100,15 @@
+ const setupLink=Object.assign(field('setup-link','',''),{tagName:'A',href:'/setup'});
+ const pendingSetup=makeContext([copy,setupLink],'Get $5 in free credit\nAPI Keys\n'+shortened,'https://freeaiapikey.com/dashboard');
+ assert.equal(vm.runInContext(inspect,pendingSetup).action,'onboarding_entry');
+-assert.equal(vm.runInContext(inspect,pendingSetup).key,'');
++assert.equal(vm.runInContext(inspect,pendingSetup).key,fullKey);
+ const unpaid=makeContext([], 'Step 1 of 5\nYour balance +$5.00\nNormal $0.00 · Bonus $0.00','https://freeaiapikey.com/setup');
+ assert.equal(vm.runInContext(inspect,unpaid).action,'onboarding_profile');
+ assert.equal(vm.runInContext(inspect,unpaid).credit_confirmed,false);
+ const paid=makeContext([], 'Step 1 of 5\nNormal $5.00 · Bonus $0.00\n$5.00 is in your balance.','https://freeaiapikey.com/setup');
+ assert.equal(vm.runInContext(inspect,paid).action,'onboarding_credit');
+ assert.equal(vm.runInContext(inspect,paid).credit_confirmed,true);
+-for(const [step,action] of [[2,'onboarding_tool'],[3,'onboarding_test'],[4,'onboarding_discord'],[5,'onboarding_plans']]){
++for(const step of [2,3,4,5]){
+  const current=makeContext([],`Step ${step} of 5\nNormal $5.00 · Bonus $0.00`,'https://freeaiapikey.com/setup');
+- assert.equal(vm.runInContext(inspect,current).action,action);
++ assert.equal(vm.runInContext(inspect,current).action,'onboarding_credit');
+ }
+-console.log('Required onboarding precedes key capture; promotional text is not credited balance');
++console.log('Survey precedes import; paid tutorial pages use Finish later; promotional text is not credited balance');
+--- /dev/null
++++ b/internal/registerbot/testdata/onboarding_completion.test.cjs
+@@ -0,0 +1,68 @@
++// Executes the inspection script embedded in the driver against the observed
++// provider DOM contract. Optional source path + --observe support before/after
++// transaction checks with identical inputs and no real credentials or network.
++const assert = require('node:assert/strict');
++const {readFileSync} = require('node:fs');
++const {join} = require('node:path');
++const vm = require('node:vm');
++const source = readFileSync(process.argv[2] || join(__dirname, '..', 'freeai.go'), 'utf8');
++const marker = 'const freeAIInspectScript = `';
++const start = source.indexOf(marker) + marker.length;
++assert.ok(start >= marker.length);
++const inspect = source.slice(start, source.indexOf('`', start));
++
++function element(tag, attrs = {}, text = '', children = []) {
++  const e = {tagName: tag.toUpperCase(), innerText: text, textContent: text, value: '', shown: true, ...attrs, children};
++  e.getAttribute = name => e[name] || '';
++  e.getBoundingClientRect = () => ({left: 0, top: 0, width: e.shown ? 200 : 0, height: e.shown ? 30 : 0});
++  e.querySelectorAll = selector => descendants(e).filter(child => selector.split(',').some(part => matches(child, part.trim())));
++  e.querySelector = selector => e.querySelectorAll(selector)[0] || null;
++  for (const child of children) child.parentElement = e;
++  return e;
++}
++function descendants(e) { return e.children.flatMap(child => [child, ...descendants(child)]); }
++function matches(e, selector) {
++  if (selector === '*') return true;
++  if (selector.startsWith('#')) return e.id === selector.slice(1);
++  const parsed = selector.match(/^([a-z]+)?(?:\[([\w-]+)(?:=["']?([^"'\]]+)["']?)?\])?$/i);
++  return !!parsed && (!parsed[1] || e.tagName === parsed[1].toUpperCase()) &&
++    (!parsed[2] || (parsed[3] === undefined ? parsed[2] in e : e[parsed[2]] === parsed[3]));
++}
++const key = 'sk-' + 'A'.repeat(43);
++const other = 'sk-' + 'B'.repeat(43);
++const setupLink = () => element('a', {href: '/setup'}, 'Finish setup — 2 minutes');
++const finishLink = () => element('a', {href: '/dashboard'}, 'Finish later and go to my dashboard');
++function keyRow(name = 'Default Key', value = key, shown = true) {
++  return element('div', {}, '', [
++    element('div', {}, '', [element('p', {}, name)]),
++    element('div', {}, '', [element('code', {}, value.slice(0, 28) + '…'), element('button', {title: 'Copy key', onclick: `copyKey('${value}')`, shown})]),
++  ]);
++}
++function page(path, text, children) {
++  const body = element('body', {}, text, children);
++  return vm.runInNewContext(inspect, {location: new URL('https://freeaiapikey.com' + path), document: {body, querySelectorAll: s => body.querySelectorAll(s)}, getComputedStyle: e => ({visibility: e.shown ? 'visible' : 'hidden'})});
++}
++const cases = [
++  ['survey_without_step_heading', '/setup', 'Answer two questions, get $5\nNormal $0.00', [element('form', {id: 'surveyForm'}), finishLink()], 'onboarding_profile', false, false],
++  ['survey_before_claim', '/setup', 'Step 1 of 5\nNormal $0.00 · Bonus $0.00\n+$5.00', [element('form', {id: 'surveyForm'}), finishLink()], 'onboarding_profile', false, false],
++  ['survey_credit_success', '/setup', 'Step 1 of 5\nNormal $5.00\n$5.00 is in your balance.', [element('div', {id: 'surveyDone'}), finishLink()], 'onboarding_credit', true, false],
++  ['credit_success_before_wallet_refresh', '/setup', 'Step 1 of 5\nNormal $0.00\n$5.00 is in your balance.', [element('div', {id: 'surveyDone'}), finishLink()], 'onboarding_credit', true, false],
++  ['resume_optional_tutorial', '/setup', 'Step 3 of 5\nNormal $5.00', [finishLink()], 'onboarding_credit', true, false],
++  ['paid_dashboard_with_setup_banner', '/dashboard', 'NORMAL CREDITS\n\n$5.00\nDefault Key', [setupLink(), keyRow()], 'key', true, true],
++  ['unpaid_dashboard', '/dashboard', 'NORMAL CREDITS\n$0.00\nDefault Key', [setupLink(), keyRow()], 'onboarding_entry', false, true],
++  ['default_key_not_first', '/dashboard', 'NORMAL CREDITS\n$5.00\nSecondary key\nDefault Key', [keyRow('Secondary', other), keyRow()], 'key', true, true],
++  ['truncated_copy_literal', '/dashboard', 'NORMAL CREDITS\n$5.00\nDefault Key', [keyRow('Default Key', key.slice(0,28)+'…')], 'loading', true, false],
++  ['no_default_key', '/dashboard', 'NORMAL CREDITS\n$5.00\nSecondary key', [keyRow('Secondary', other)], 'loading', true, false],
++  ['hidden_copy_control', '/dashboard', 'NORMAL CREDITS\n$5.00\nDefault Key', [keyRow('Default Key', key, false)], 'loading', true, false],
++];
++const observations = cases.map(([name,path,text,children,action,credit,hasKey]) => {
++  const actual = page(path,text,children);
++  if (!process.argv.includes('--observe')) {
++    assert.equal(actual.action,action,name);
++    assert.equal(actual.credit_confirmed,credit,name);
++    assert.equal(actual.key,hasKey ? key : '',name);
++  }
++  return {case:name,action:actual.action,credit:actual.credit_confirmed,defaultKey:actual.key===key,otherKey:actual.key===other};
++});
++console.log(JSON.stringify(observations, null, 2));
++if (!process.argv.includes('--observe')) console.log(`PASS ${cases.length} onboarding completion cases`);
+--- a/internal/registerbot/README.md
++++ b/internal/registerbot/README.md
+@@ -56,18 +56,31 @@
+ 
+ ## Gateway and browser behavior
+ 
+-FreeAI onboarding is mandatory before automatic key capture. The channel's
+-`onboarding-role` and `onboarding-source` contain operator-supplied survey answers.
+-The driver confirms the initial $5 credit, follows all five setup pages, and uses
+-the existing plan. It skips the separate Discord reward only when
+-`skip-optional-discord` is explicitly enabled; otherwise that step is handed to
+-the operator. Missing answers or unconfirmed credit retain the page for manual
+-completion. Updating channel answers takes effect when a retained task resumes.
++The FreeAI completion path is: select the configured survey answers, click
++`Get my $5` once, observe credit confirmation, click
++`Finish later and go to my dashboard`, and capture the complete `Default Key`.
++This installation uses the operator-requested `onboarding-role: student` and
++`onboarding-source: google`. The channel fields remain configurable; missing
++answers retain the page for manual completion. Updating answers takes effect
++when a retained task resumes.
++
++The optional coding-tool, test, Discord and plan tutorials are not required.
++The dashboard keeps its `Finish setup` banner after Finish later: confirmed
++credit plus the Default Key takes precedence over that banner, including on
++resume. A changed submit label or DOM redraw never authorizes a second credit
++claim. Unconfirmed credit or an unrecognized page retains manual recovery.
++`skip-optional-discord` remains a compatible stored setting but the fast path
++does not enter the Discord tutorial.
+ 
+ Dashboard key labels are truncated. Keys are read only from the full literal in
+-the provider's `Copy key` action. The public model catalog is not an authentication
++the provider's `Copy key` action inside the named Default Key row, never another
++key or the shortened display text. The public model catalog is not an authentication
+ check: importing requires a successful, bounded-output chat completion using the
+ destination's first configured model, matching the panel's automatic key test.
++A five-token response exhausted during reasoning is accepted only when it has
++an assistant role, nonempty reasoning output, `finish_reason: length`, and a
++positive completion-token count. Empty output, error bodies, redirects and
++public model lists still fail verification.
+ 
+ Gateway fallback is `controller -> proxy_only -> disabled`. Discovery tries an
+ explicit controller first, then candidates derived from the forwarding port; the
+@@ -201,6 +214,8 @@
+ go test ./internal/registerbot ./internal/api/handlers/management
+ go vet ./internal/registerbot
+ go build ./cmd/server
++node internal/registerbot/testdata/google_identifier.test.cjs
++node internal/registerbot/testdata/onboarding_completion.test.cjs
+ ```
+ 
+ Unit tests exercise queue behavior, encrypted recovery, cancellation, gateway and
+--- a/internal/api/handlers/management/registerbot_import.go
++++ b/internal/api/handlers/management/registerbot_import.go
+@@ -212,14 +212,29 @@
+ 	}
+ 	var completion struct {
+ 		Choices []struct {
+-			Message struct {
+-				Role    string `json:"role"`
+-				Content string `json:"content"`
++			FinishReason string `json:"finish_reason"`
++			Message      struct {
++				Role             string `json:"role"`
++				Content          string `json:"content"`
++				ReasoningContent string `json:"reasoning_content"`
++				Reasoning        string `json:"reasoning"`
+ 			} `json:"message"`
+ 		} `json:"choices"`
++		Usage struct {
++			CompletionTokens int `json:"completion_tokens"`
++		} `json:"usage"`
+ 		Error any `json:"error"`
+ 	}
+-	if errDecode := json.Unmarshal(data, &completion); errDecode != nil || completion.Error != nil || len(completion.Choices) == 0 || completion.Choices[0].Message.Role != "assistant" || strings.TrimSpace(completion.Choices[0].Message.Content) == "" {
++	if errDecode := json.Unmarshal(data, &completion); errDecode != nil || completion.Error != nil || len(completion.Choices) == 0 || completion.Choices[0].Message.Role != "assistant" {
++		return errors.New("registerbot: key verification returned no assistant completion")
++	}
++	choice := completion.Choices[0]
++	// The five-token probe can be exhausted by reasoning before the model
++	// emits final content. Actual reasoning output plus a token-limited finish
++	// and nonzero generated tokens still proves authenticated inference.
++	reasoningAtLimit := choice.FinishReason == "length" && completion.Usage.CompletionTokens > 0 &&
++		(strings.TrimSpace(choice.Message.ReasoningContent) != "" || strings.TrimSpace(choice.Message.Reasoning) != "")
++	if strings.TrimSpace(choice.Message.Content) == "" && !reasoningAtLimit {
+ 		return errors.New("registerbot: key verification returned no assistant completion")
+ 	}
+ 	return nil
+--- a/internal/api/handlers/management/registerbot_test.go
++++ b/internal/api/handlers/management/registerbot_test.go
+@@ -150,3 +150,33 @@
+ 		t.Fatal("missing verification model accepted")
+ 	}
+ }
++
++func TestRegisterBotVerificationReasoningAtTokenLimit(t *testing.T) {
++	for _, test := range []struct {
++		name, body string
++		valid      bool
++	}{
++		{"reasoning_content", `{"choices":[{"finish_reason":"length","message":{"role":"assistant","content":"","reasoning_content":"fixture output"}}],"usage":{"completion_tokens":5}}`, true},
++		{"reasoning_alias", `{"choices":[{"finish_reason":"length","message":{"role":"assistant","content":"","reasoning":"fixture output"}}],"usage":{"completion_tokens":5}}`, true},
++		{"no_output", `{"choices":[{"finish_reason":"length","message":{"role":"assistant","content":""}}],"usage":{"completion_tokens":5}}`, false},
++		{"whitespace_only", `{"choices":[{"finish_reason":"length","message":{"role":"assistant","reasoning":"  "}}],"usage":{"completion_tokens":5}}`, false},
++		{"no_completion_tokens", `{"choices":[{"finish_reason":"length","message":{"role":"assistant","reasoning":"fixture output"}}]}`, false},
++		{"not_token_limited", `{"choices":[{"finish_reason":"stop","message":{"role":"assistant","reasoning":"fixture output"}}],"usage":{"completion_tokens":5}}`, false},
++		{"error_with_reasoning", `{"error":{"message":"denied"},"choices":[{"finish_reason":"length","message":{"role":"assistant","reasoning":"fixture output"}}],"usage":{"completion_tokens":5}}`, false},
++		{"wrong_role", `{"choices":[{"finish_reason":"length","message":{"role":"user","reasoning":"fixture output"}}],"usage":{"completion_tokens":5}}`, false},
++	} {
++		t.Run(test.name, func(t *testing.T) {
++			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++				if r.Header.Get("Authorization") != "Bearer "+importTestKey {
++					t.Error("missing authentication")
++				}
++				_, _ = w.Write([]byte(test.body))
++			}))
++			defer server.Close()
++			err := verifyRegisterBotKey(context.Background(), server.URL, "direct", importTestKey, registerBotProbeModel{Name: "fixture-model"})
++			if (err == nil) != test.valid {
++				t.Fatalf("accepted=%v want=%v error=%v", err == nil, test.valid, err)
++			}
++		})
++	}
++}

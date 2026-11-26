@@ -1,0 +1,23 @@
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content
+    registerbot_test.go:178: accepted=false want=true error=registerbot: key verification returned no assistant completion
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias
+    registerbot_test.go:178: accepted=false want=true error=registerbot: key verification returned no assistant completion
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_output
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning
+=== RUN   TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role
+--- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit (0.00s)
+    --- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_content (0.00s)
+    --- FAIL: TestRegisterBotVerificationReasoningAtTokenLimit/reasoning_alias (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_output (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/whitespace_only (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/no_completion_tokens (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/not_token_limited (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/error_with_reasoning (0.00s)
+    --- PASS: TestRegisterBotVerificationReasoningAtTokenLimit/wrong_role (0.00s)
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/api/handlers/management	0.178s
+FAIL

@@ -1,0 +1,7 @@
+=== RUN   TestFreeAIOnboardingFastPath
+    freeai_test.go:258: Student -> Google search -> Get my $5 (once) -> Finish later -> full Default Key; no setup loop
+--- PASS: TestFreeAIOnboardingFastPath (2.80s)
+=== RUN   TestFreeAIExistingPaidDashboardDoesNotReopenSetup
+--- PASS: TestFreeAIExistingPaidDashboardDoesNotReopenSetup (0.00s)
+PASS
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	2.896s

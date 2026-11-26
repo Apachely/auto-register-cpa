@@ -1,0 +1,12 @@
+=== RUN   TestGatewayFixedRouteAllowsParallelAccounts
+    parallel_test.go:67: same fixed route was serialized: context deadline exceeded
+--- FAIL: TestGatewayFixedRouteAllowsParallelAccounts (1.00s)
+=== RUN   TestGatewayDegradedForwardingAllowsParallelAccounts
+    parallel_test.go:102: non-mutating fallback serialized: context deadline exceeded
+--- FAIL: TestGatewayDegradedForwardingAllowsParallelAccounts (1.00s)
+=== RUN   TestEngineBatchReachesConfiguredConcurrencyThroughGateway
+    parallel_test.go:168: batch did not reach a second active driver through the gateway
+--- FAIL: TestEngineBatchReachesConfiguredConcurrencyThroughGateway (3.03s)
+FAIL
+FAIL	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	5.132s
+FAIL

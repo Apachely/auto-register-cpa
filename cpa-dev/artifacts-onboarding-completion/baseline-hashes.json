@@ -1,0 +1,18 @@
+[
+  {
+    "Path": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\freeai.go",
+    "Hash": "02E4069E15BD20A25FF23F6CD93C900F55AD2674B5D4F9C71515170427EA8033"
+  },
+  {
+    "Path": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\freeai_test.go",
+    "Hash": "D5734349B039BFDBBB4DED73BD5F714D8DCBFBBCF0C1705E382B743AB49C4E08"
+  },
+  {
+    "Path": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\testdata\\google_identifier.test.cjs",
+    "Hash": "CE33D9E4127DC495576421FAD91AD6DEA700B94217AD000CA5AEFBA0DCC0FD82"
+  },
+  {
+    "Path": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\README.md",
+    "Hash": "3C99815F1A6703EFD322297EA59628F1AE9B0B710A7E8734605CF3F6FF0B3253"
+  }
+]

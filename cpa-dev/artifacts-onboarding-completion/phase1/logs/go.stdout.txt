@@ -1,0 +1,2 @@
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot	3.374s
+ok  	github.com/router-for-me/CLIProxyAPI/v8/internal/api/handlers/management	(cached)

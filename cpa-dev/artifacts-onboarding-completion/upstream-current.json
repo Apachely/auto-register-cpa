@@ -1,0 +1,7 @@
+{
+  "case": "existing_key_control",
+  "model": "anthropic/claude-opus-4.7",
+  "http": 200,
+  "htmlTitle": "",
+  "completionCount": 1
+}

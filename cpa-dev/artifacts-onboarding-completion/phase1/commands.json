@@ -1,0 +1,97 @@
+[
+  {
+    "name": "RESTORE_freeai.go",
+    "command": [
+      "D:/AP/Git/bin/bash.exe",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase1\\rollback-check\\freeai.go",
+      "phase1-freeai.go"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit": 0,
+    "stdout": "RESTORED_PRISTINE_BYTES\n",
+    "stderr": ""
+  },
+  {
+    "name": "RESTORE_settings.go",
+    "command": [
+      "D:/AP/Git/bin/bash.exe",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\ROLLBACK.sh",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase1\\rollback-check\\settings.go",
+      "phase1-settings.go"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit": 0,
+    "stdout": "RESTORED_PRISTINE_BYTES\n",
+    "stderr": ""
+  },
+  {
+    "name": "BASELINE",
+    "command": [
+      "go",
+      "test",
+      "-overlay",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase1\\overlay-BASELINE.json",
+      "./internal/registerbot",
+      "-run",
+      "TestFreeAIFreshSurveyBrowser",
+      "-v",
+      "-count=1"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit": 1,
+    "stdout": "=== RUN   TestFreeAIFreshSurveyBrowser\n    onboarding_browser_test.go:103: fresh survey did not finish: key=false error=registerbot: operator action required\n--- FAIL: TestFreeAIFreshSurveyBrowser (0.46s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t0.555s\nFAIL\n",
+    "stderr": ""
+  },
+  {
+    "name": "MODIFIED",
+    "command": [
+      "go",
+      "test",
+      "-overlay",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase1\\overlay-MODIFIED.json",
+      "./internal/registerbot",
+      "-run",
+      "TestFreeAIFreshSurveyBrowser",
+      "-v",
+      "-count=1"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit": 0,
+    "stdout": "=== RUN   TestFreeAIFreshSurveyBrowser\n    onboarding_browser_test.go:108: PASS real browser: delayed new survey -> Student -> Google search -> one claim -> Finish later -> complete Default Key; no manual input or provider network\n--- PASS: TestFreeAIFreshSurveyBrowser (3.98s)\nPASS\nok  \tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t4.072s\n",
+    "stderr": ""
+  },
+  {
+    "name": "ROLLBACK",
+    "command": [
+      "go",
+      "test",
+      "-overlay",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase1\\overlay-ROLLBACK.json",
+      "./internal/registerbot",
+      "-run",
+      "TestFreeAIFreshSurveyBrowser",
+      "-v",
+      "-count=1"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend",
+    "exit": 1,
+    "stdout": "=== RUN   TestFreeAIFreshSurveyBrowser\n    onboarding_browser_test.go:103: fresh survey did not finish: key=false error=registerbot: operator action required\n--- FAIL: TestFreeAIFreshSurveyBrowser (0.46s)\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v8/internal/registerbot\t0.551s\nFAIL\n",
+    "stderr": ""
+  },
+  {
+    "name": "PATCH_RECONSTRUCTION",
+    "command": [
+      "git",
+      "-c",
+      "core.autocrlf=false",
+      "apply",
+      "--unsafe-paths",
+      "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\DIFF_FILE.patch"
+    ],
+    "cwd": "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\phase1\\patch-check",
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

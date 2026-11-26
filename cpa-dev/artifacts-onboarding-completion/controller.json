@@ -1,0 +1,17 @@
+{
+  "ACTIVE_OBJECT": "E:\\LY\\Tool\\CPA\\cpa-dev\\cpa-backend\\internal\\registerbot\\freeai.go",
+  "LAST_CONFIRMED_RESULT": "Live run done=1 pending_write=0; Default Key imported and read back; 6 prior keys and provider fields unchanged",
+  "NEXT_EXECUTABLE_ACTION": "No pending execution; goal acceptance audit complete",
+  "INPUT_PATHS": [
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\live-run.json",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\deployment.json"
+  ],
+  "ACCEPTANCE_EVENT": "Same account reaches Default Key capture automatically without setup loop",
+  "status": "completed",
+  "command": [
+    "C:\\Users\\443\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell\\pwsh.exe",
+    "-NoProfile",
+    "-File",
+    "E:\\LY\\Tool\\CPA\\cpa-dev\\artifacts-onboarding-completion\\check-live.ps1"
+  ]
+}
