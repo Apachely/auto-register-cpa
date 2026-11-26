@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/Select';
 import { apiClient } from '@/services/api/client';
 import { useAuthStore } from '@/stores';
 import { ChannelEditor } from './ChannelEditor';
+import { ProxyPoolPanel } from './ProxyPoolPanel';
 import { useRegisterbot } from './useRegisterbot';
 import type { RegisterChannel, RegisterRow, RegisterRun, RunAction } from './types';
 import styles from './RegisterbotPage.module.scss';
@@ -88,7 +89,7 @@ function RunCard({
         <Stage value={run.status} />
       </div>
       <div className={styles.metrics}>
-        {(['total', 'done', 'failed', 'waiting', 'pendingWrite'] as const).map((key) => (
+        {(['total', 'usable', 'done', 'failed', 'waiting', 'pendingWrite'] as const).map((key) => (
           <div key={key}>
             <span>{t(`registerbot.counter.${key}`)}</span>
             <strong>{run.counters[key]}</strong>
@@ -157,6 +158,12 @@ function RunCard({
                 {t('registerbot.attempt', { attempt: row.attempt })}
               </span>
               {row.maskedKey && <span className={styles.mono}>{row.maskedKey}</span>}
+              {row.exitIp && <span className={styles.mono}>{row.exitIp}</span>}
+              {row.usable && (
+                <span className={styles.badge} data-state="done">
+                  {t('registerbot.proxy_pool.account_usable')}
+                </span>
+              )}
             </div>
             {row.reason && (
               <p className={styles.hint}>
@@ -181,6 +188,7 @@ function RegisterbotWorkbench() {
   const [hasInput, setHasInput] = useState(false);
   const [selection, setSelection] = useState('');
   const [editor, setEditor] = useState<RegisterChannel | null>(null);
+  const [view, setView] = useState<'queue' | 'proxy_pool'>('queue');
   const channels = work.snapshot?.channels ?? [];
   const enabled = channels.filter((channel) => channel.enabled);
   const selected = channels.find((channel) => channel.id === selection) ?? enabled[0];
@@ -239,186 +247,211 @@ function RegisterbotWorkbench() {
         </span>
         <span className={styles.hint}>{t('registerbot.live_hint')}</span>
       </div>
+      <div className={styles.viewTabs} role="tablist" aria-label={t('registerbot.views')}>
+        {(['queue', 'proxy_pool'] as const).map((item) => (
+          <button
+            key={item}
+            type="button"
+            role="tab"
+            aria-selected={view === item}
+            className={view === item ? styles.viewTabActive : styles.viewTab}
+            onClick={() => setView(item)}
+          >
+            {t(`registerbot.view.${item}`)}
+          </button>
+        ))}
+      </div>
       {work.error && (
         <div className="error-box" role="alert">
           {t('registerbot.operation_failed')}
         </div>
       )}
-      {!work.snapshot.enabled && <p className={styles.notice}>{t('registerbot.disabled')}</p>}
-      {work.snapshot.storageError && (
-        <p className={styles.notice} role="alert">
-          {t('registerbot.storage_error')}
-        </p>
-      )}
-      <div className={styles.columns}>
-        <Card className={styles.card} title={t('registerbot.new_batch')}>
-          <div className="form-group">
-            <label htmlFor={`${id}-channel`}>{t('registerbot.channel')}</label>
-            <Select
-              id={`${id}-channel`}
-              value={selected?.id ?? ''}
-              options={options}
-              onChange={(value) => {
-                setSelection(value);
-                setEditor(null);
-              }}
-              disabled={work.busy}
-            />
-          </div>
-          <div className={styles.actions}>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!selected || work.busy}
-              onClick={() => selected && setEditor(selected)}
-            >
-              {t('registerbot.edit_channel')}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!channels[0] || work.busy}
-              onClick={() => setEditor({ ...channels[0], id: '', name: '', nodes: [] })}
-            >
-              {t('registerbot.add_channel')}
-            </Button>
-          </div>
-          {editor ? (
-            <ChannelEditor
-              key={editor.id}
-              channel={editor}
-              gateway={work.gateway}
-              busy={work.busy}
-              onSave={work.saveChannel}
-              onClose={() => setEditor(null)}
-            />
-          ) : (
-            <form className={styles.batchForm} onSubmit={(event) => void submit(event)}>
+      {view === 'proxy_pool' ? (
+        <ProxyPoolPanel
+          pool={work.proxyPool}
+          busy={work.busy}
+          onSave={work.saveProxyPool}
+          onRefresh={work.refreshProxyPool}
+        />
+      ) : (
+        <>
+          {!work.snapshot.enabled && <p className={styles.notice}>{t('registerbot.disabled')}</p>}
+          {work.snapshot.storageError && (
+            <p className={styles.notice} role="alert">
+              {t('registerbot.storage_error')}
+            </p>
+          )}
+          <div className={styles.columns}>
+            <Card className={styles.card} title={t('registerbot.new_batch')}>
               <div className="form-group">
-                <label htmlFor={`${id}-accounts`}>{t('registerbot.accounts')}</label>
-                <textarea
-                  id={`${id}-accounts`}
-                  ref={sourceRef}
-                  rows={6}
-                  className={styles.accounts}
-                  disabled={work.busy || !selected?.enabled || !work.snapshot.enabled}
-                  autoComplete="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                  maxLength={257000}
-                  aria-describedby={`${id}-hint`}
-                  onInput={(event) => setHasInput(Boolean(event.currentTarget.value.trim()))}
+                <label htmlFor={`${id}-channel`}>{t('registerbot.channel')}</label>
+                <Select
+                  id={`${id}-channel`}
+                  value={selected?.id ?? ''}
+                  options={options}
+                  onChange={(value) => {
+                    setSelection(value);
+                    setEditor(null);
+                  }}
+                  disabled={work.busy}
                 />
-                <p id={`${id}-hint`} className="hint">
-                  {t('registerbot.accounts_hint')}
-                </p>
               </div>
-              <div className={styles.destination}>
-                <span>{t('registerbot.destination')}</span>
-                <strong>{selected?.provider || '—'}</strong>
-                <span className={styles.mono}>{selected?.proxyUrl}</span>
+              <div className={styles.actions}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!selected || work.busy}
+                  onClick={() => selected && setEditor(selected)}
+                >
+                  {t('registerbot.edit_channel')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!channels[0] || work.busy}
+                  onClick={() => setEditor({ ...channels[0], id: '', name: '', nodes: [] })}
+                >
+                  {t('registerbot.add_channel')}
+                </Button>
               </div>
-              <Button
-                type="submit"
-                loading={work.busy}
-                disabled={!hasInput || !selected?.enabled || !work.snapshot.enabled}
-              >
-                {t('registerbot.start')}
-              </Button>
-            </form>
-          )}
-        </Card>
-        <Card className={styles.card} title={t('registerbot.gateway_title')}>
-          <div className={styles.actions}>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={work.busy}
-              onClick={() => void work.probeGateway()}
-            >
-              {t('registerbot.probe_gateway')}
-            </Button>
+              {editor ? (
+                <ChannelEditor
+                  key={editor.id}
+                  channel={editor}
+                  gateway={work.gateway}
+                  busy={work.busy}
+                  onSave={work.saveChannel}
+                  onClose={() => setEditor(null)}
+                />
+              ) : (
+                <form className={styles.batchForm} onSubmit={(event) => void submit(event)}>
+                  <div className="form-group">
+                    <label htmlFor={`${id}-accounts`}>{t('registerbot.accounts')}</label>
+                    <textarea
+                      id={`${id}-accounts`}
+                      ref={sourceRef}
+                      rows={6}
+                      className={styles.accounts}
+                      disabled={work.busy || !selected?.enabled || !work.snapshot.enabled}
+                      autoComplete="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      maxLength={257000}
+                      aria-describedby={`${id}-hint`}
+                      onInput={(event) => setHasInput(Boolean(event.currentTarget.value.trim()))}
+                    />
+                    <p id={`${id}-hint`} className="hint">
+                      {t('registerbot.accounts_hint')}
+                    </p>
+                  </div>
+                  <div className={styles.destination}>
+                    <span>{t('registerbot.destination')}</span>
+                    <strong>{selected?.provider || '—'}</strong>
+                    <span className={styles.mono}>{selected?.proxyUrl}</span>
+                  </div>
+                  <Button
+                    type="submit"
+                    loading={work.busy}
+                    disabled={!hasInput || !selected?.enabled || !work.snapshot.enabled}
+                  >
+                    {t('registerbot.start')}
+                  </Button>
+                </form>
+              )}
+            </Card>
+            <Card className={styles.card} title={t('registerbot.gateway_title')}>
+              <div className={styles.actions}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={work.busy}
+                  onClick={() => void work.probeGateway()}
+                >
+                  {t('registerbot.probe_gateway')}
+                </Button>
+              </div>
+              {work.gateway ? (
+                <>
+                  <dl className={styles.gateway}>
+                    <dt>{t('registerbot.proxy')}</dt>
+                    <dd>{work.gateway.proxyUrl || '—'}</dd>
+                    <dt>{t('registerbot.controller')}</dt>
+                    <dd>{work.gateway.controllerUrl || '—'}</dd>
+                    <dt>{t('registerbot.sharing')}</dt>
+                    <dd>
+                      {t(`registerbot.mode.${work.gateway.shareMode}`, {
+                        defaultValue: work.gateway.shareMode,
+                      })}
+                    </dd>
+                    <dt>{t('registerbot.gateway_group')}</dt>
+                    <dd>{selected?.group || '—'}</dd>
+                    <dt>{t('registerbot.node')}</dt>
+                    <dd>{selected?.nodes.join(', ') || t('registerbot.auto_node')}</dd>
+                  </dl>
+                  <p className={styles.hint}>{t('registerbot.gateway_hint')}</p>
+                  {work.gateway.warnings.map((warning) => (
+                    <p key={warning} className={styles.notice}>
+                      {warning}
+                    </p>
+                  ))}
+                  {work.gateway.error && <p className={styles.notice}>{work.gateway.error}</p>}
+                </>
+              ) : (
+                <EmptyState
+                  title={t('registerbot.gateway_unavailable')}
+                  description={t('registerbot.degrade_hint')}
+                />
+              )}
+              <p className={styles.ladder}>{t('registerbot.ladders')}</p>
+            </Card>
           </div>
-          {work.gateway ? (
-            <>
-              <dl className={styles.gateway}>
-                <dt>{t('registerbot.proxy')}</dt>
-                <dd>{work.gateway.proxyUrl || '—'}</dd>
-                <dt>{t('registerbot.controller')}</dt>
-                <dd>{work.gateway.controllerUrl || '—'}</dd>
-                <dt>{t('registerbot.sharing')}</dt>
-                <dd>
-                  {t(`registerbot.mode.${work.gateway.shareMode}`, {
-                    defaultValue: work.gateway.shareMode,
-                  })}
-                </dd>
-                <dt>{t('registerbot.gateway_group')}</dt>
-                <dd>{selected?.group || '—'}</dd>
-                <dt>{t('registerbot.node')}</dt>
-                <dd>{selected?.nodes.join(', ') || t('registerbot.auto_node')}</dd>
-              </dl>
-              <p className={styles.hint}>{t('registerbot.gateway_hint')}</p>
-              {work.gateway.warnings.map((warning) => (
-                <p key={warning} className={styles.notice}>
-                  {warning}
-                </p>
-              ))}
-              {work.gateway.error && <p className={styles.notice}>{work.gateway.error}</p>}
-            </>
-          ) : (
-            <EmptyState
-              title={t('registerbot.gateway_unavailable')}
-              description={t('registerbot.degrade_hint')}
-            />
-          )}
-          <p className={styles.ladder}>{t('registerbot.ladders')}</p>
-        </Card>
-      </div>
-      <Card title={t('registerbot.runs_title')} className={styles.card}>
-        {visibleRuns.length ? (
-          visibleRuns.map((run) => (
-            <RunCard
-              key={run.id}
-              run={run}
-              busy={work.busy}
-              action={work.action}
-              submitKey={work.submitKey}
-            />
-          ))
-        ) : (
-          <EmptyState
-            title={t('registerbot.no_runs')}
-            description={t('registerbot.no_runs_hint')}
-          />
-        )}
-      </Card>
-      <Card title={t('registerbot.events_title')} className={styles.card}>
-        {visibleEvents.length ? (
-          <ol
-            className={styles.timeline}
-            role="log"
-            aria-live="polite"
-            aria-relevant="additions"
-            aria-label={t('registerbot.events_title')}
-          >
-            {visibleEvents.map((event) => (
-              <li key={event.seq} data-level={event.level}>
-                <time>{new Date(event.at).toLocaleTimeString(i18n.language)}</time>
-                <Stage value={event.stage} />
-                <span className={styles.eventText}>
-                  {event.message
-                    ? t(`registerbot.reason.${event.message}`, { defaultValue: event.message })
-                    : event.account}
-                </span>
-                {event.node && <span className={styles.hint}>{event.node}</span>}
-                {event.browser && <span className={styles.hint}>{event.browser}</span>}
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <EmptyState title={t('registerbot.no_events')} />
-        )}
-      </Card>
+          <Card title={t('registerbot.runs_title')} className={styles.card}>
+            {visibleRuns.length ? (
+              visibleRuns.map((run) => (
+                <RunCard
+                  key={run.id}
+                  run={run}
+                  busy={work.busy}
+                  action={work.action}
+                  submitKey={work.submitKey}
+                />
+              ))
+            ) : (
+              <EmptyState
+                title={t('registerbot.no_runs')}
+                description={t('registerbot.no_runs_hint')}
+              />
+            )}
+          </Card>
+          <Card title={t('registerbot.events_title')} className={styles.card}>
+            {visibleEvents.length ? (
+              <ol
+                className={styles.timeline}
+                role="log"
+                aria-live="polite"
+                aria-relevant="additions"
+                aria-label={t('registerbot.events_title')}
+              >
+                {visibleEvents.map((event) => (
+                  <li key={event.seq} data-level={event.level}>
+                    <time>{new Date(event.at).toLocaleTimeString(i18n.language)}</time>
+                    <Stage value={event.stage} />
+                    <span className={styles.eventText}>
+                      {event.message
+                        ? t(`registerbot.reason.${event.message}`, { defaultValue: event.message })
+                        : event.account}
+                    </span>
+                    {event.node && <span className={styles.hint}>{event.node}</span>}
+                    {event.browser && <span className={styles.hint}>{event.browser}</span>}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <EmptyState title={t('registerbot.no_events')} />
+            )}
+          </Card>
+        </>
+      )}
     </div>
   );
 }

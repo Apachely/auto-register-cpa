@@ -5,6 +5,8 @@ import type {
   RegisterCounters,
   RegisterEvent,
   RegisterGateway,
+  RegisterProxyPool,
+  RegisterProxyPoolSettings,
   RegisterRun,
   RegisterSnapshot,
   RunAction,
@@ -81,6 +83,7 @@ function readCounters(value: unknown): RegisterCounters {
     waiting: number(item.waiting_human),
     pendingWrite: number(item.pending_write),
     harvested: number(item.harvested_keys),
+    usable: number(item.usable_accounts),
   };
 }
 
@@ -102,10 +105,66 @@ export function readRegisterRun(value: unknown): RegisterRun {
         stage: text(row.stage),
         attempt: number(row.attempt),
         maskedKey: text(row.masked_key),
+        node: text(row.node),
+        exitIp: text(row.exit_ip),
+        creditConfirmed: row.credit_confirmed === true,
+        usable: row.usable === true,
         reason: text(row.reason),
         updatedAt: number(row.updated_at),
       };
     }),
+  };
+}
+
+export function readRegisterProxyPool(value: unknown): RegisterProxyPool {
+  const item = record(value);
+  return {
+    enabled: item.enabled === true,
+    mode: text(item.mode) === 'enforce' ? 'enforce' : 'disabled',
+    maxUsableAccountsPerIp: number(item.max_usable_accounts_per_ip),
+    failureCooldownSeconds: number(item.failure_cooldown_seconds),
+    totalNodes: number(item.total_nodes),
+    readyNodes: number(item.ready_nodes),
+    reserved: number(item.reserved),
+    exhaustedIps: number(item.exhausted_ips),
+    usableAccounts: number(item.usable_accounts),
+    lastNode: text(item.last_node),
+    lastExitIp: text(item.last_exit_ip),
+    updatedAt: number(item.updated_at),
+    nodes: list(item.nodes).map((value) => {
+      const node = record(value);
+      return {
+        group: text(node.group),
+        node: text(node.node),
+        exitIp: text(node.exit_ip),
+        status: text(node.status),
+        usableAccounts: number(node.usable_accounts),
+        reserved: number(node.reserved),
+        assignments: number(node.assignments),
+        failures: number(node.failures),
+        lastUsedAt: number(node.last_used_at),
+      };
+    }),
+    ips: list(item.ips).map((value) => {
+      const ip = record(value);
+      return {
+        exitIp: text(ip.exit_ip),
+        usableAccounts: number(ip.usable_accounts),
+        unusableAccounts: number(ip.unusable_accounts),
+        reserved: number(ip.reserved),
+        remaining: number(ip.remaining),
+        lastUsedAt: number(ip.last_used_at),
+        lastSuccessAt: number(ip.last_success_at),
+      };
+    }),
+  };
+}
+
+function writeProxyPool(settings: RegisterProxyPoolSettings) {
+  return {
+    mode: settings.mode,
+    max_usable_accounts_per_ip: settings.maxUsableAccountsPerIp,
+    failure_cooldown_seconds: settings.failureCooldownSeconds,
   };
 }
 
@@ -170,6 +229,10 @@ export function createRegisterbotClient(isActive: () => boolean, signal: AbortSi
         }),
       };
     },
+    async proxyPool(): Promise<RegisterProxyPool> {
+      assertCurrent();
+      return readRegisterProxyPool(await client.get(`${PATH}/proxy-pool`, { signal }));
+    },
     async start(channel: string, accounts: string) {
       assertCurrent();
       const result = record(await client.post(`${PATH}/runs`, { channel, accounts }, { signal }));
@@ -190,6 +253,16 @@ export function createRegisterbotClient(isActive: () => boolean, signal: AbortSi
     async probeGateway() {
       assertCurrent();
       await client.post(`${PATH}/gateway/probe`, {}, { signal });
+    },
+    async saveProxyPool(settings: RegisterProxyPoolSettings) {
+      assertCurrent();
+      return readRegisterProxyPool(
+        await client.put(`${PATH}/proxy-pool`, writeProxyPool(settings), { signal })
+      );
+    },
+    async refreshProxyPool() {
+      assertCurrent();
+      return readRegisterProxyPool(await client.post(`${PATH}/proxy-pool/refresh`, {}, { signal }));
     },
     async saveChannel(channel: RegisterChannel) {
       assertCurrent();

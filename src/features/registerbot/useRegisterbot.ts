@@ -7,6 +7,8 @@ import type {
   RegisterChannel,
   RegisterEvent,
   RegisterGateway,
+  RegisterProxyPool,
+  RegisterProxyPoolSettings,
   RegisterSnapshot,
   RunAction,
   StreamState,
@@ -20,6 +22,7 @@ export function useRegisterbot() {
   const busyRef = useRef(false);
   const [snapshot, setSnapshot] = useState<RegisterSnapshot | null>(null);
   const [gateway, setGateway] = useState<RegisterGateway | null>(null);
+  const [proxyPool, setProxyPool] = useState<RegisterProxyPool | null>(null);
   const [events, setEvents] = useState<RegisterEvent[]>([]);
   const [stream, setStream] = useState<StreamState>('connecting');
   const [error, setError] = useState(false);
@@ -50,9 +53,20 @@ export function useRegisterbot() {
     }
   }, []);
 
+  const refreshProxyPool = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client?.isCurrent()) return;
+    try {
+      const value = await client.proxyPool();
+      if (client.isCurrent()) setProxyPool(value);
+    } catch {
+      if (client.isCurrent()) setProxyPool(null);
+    }
+  }, []);
+
   const reload = useCallback(async () => {
-    await Promise.all([refresh(), refreshGateway()]);
-  }, [refresh, refreshGateway]);
+    await Promise.all([refresh(), refreshGateway(), refreshProxyPool()]);
+  }, [refresh, refreshGateway, refreshProxyPool]);
   useHeaderRefresh(reload);
 
   useEffect(() => {
@@ -85,6 +99,12 @@ export function useRegisterbot() {
               }
               if (event.stage.includes('gateway') || event.stage === 'pinning')
                 void refreshGateway();
+              if (
+                event.stage.includes('proxy_pool') ||
+                event.stage === 'account_usable' ||
+                event.stage === 'welcome_credit_missing'
+              )
+                void refreshProxyPool();
             },
             (nextCursor) => {
               cursor = nextCursor;
@@ -113,7 +133,7 @@ export function useRegisterbot() {
       if (refreshTimer !== undefined) clearTimeout(refreshTimer);
       if (clientRef.current === client) clientRef.current = null;
     };
-  }, [refresh, refreshGateway, reload]);
+  }, [refresh, refreshGateway, refreshProxyPool, reload]);
 
   const mutate = useCallback(
     async (operation: (client: Client) => Promise<unknown>) => {
@@ -141,6 +161,7 @@ export function useRegisterbot() {
   return {
     snapshot,
     gateway,
+    proxyPool,
     events,
     stream,
     error,
@@ -152,6 +173,16 @@ export function useRegisterbot() {
     submitKey: (run: string, row: string, key: string) =>
       mutate((client) => client.submitKey(run, row, key)),
     saveChannel: (channel: RegisterChannel) => mutate((client) => client.saveChannel(channel)),
+    saveProxyPool: async (settings: RegisterProxyPoolSettings) => {
+      const saved = await mutate((client) => client.saveProxyPool(settings));
+      if (saved) await refreshProxyPool();
+      return saved;
+    },
+    refreshProxyPool: async () => {
+      const refreshed = await mutate((client) => client.refreshProxyPool());
+      if (refreshed) await Promise.all([refreshProxyPool(), refreshGateway()]);
+      return refreshed;
+    },
     probeGateway: async () => {
       if (await mutate((client) => client.probeGateway())) await refreshGateway();
     },

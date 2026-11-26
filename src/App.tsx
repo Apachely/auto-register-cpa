@@ -31,6 +31,16 @@ const devPreviewRoutes = import.meta.env.DEV
           return { Component: QuotaTierPreview };
         },
       },
+      {
+        path: '/__preview/registerbot-proxy-pool',
+        HydrateFallback: () => null,
+        lazy: async () => {
+          const { ProxyPoolPreview } = await import(
+            '@/features/registerbot/preview/ProxyPoolPreview'
+          );
+          return { Component: ProxyPoolPreview };
+        },
+      },
     ]
   : [];
 

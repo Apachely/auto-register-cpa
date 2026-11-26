@@ -30,6 +30,7 @@ export interface RegisterCounters {
   waiting: number;
   pendingWrite: number;
   harvested: number;
+  usable: number;
 }
 
 export interface RegisterRow {
@@ -39,6 +40,10 @@ export interface RegisterRow {
   stage: string;
   attempt: number;
   maskedKey: string;
+  node: string;
+  exitIp: string;
+  creditConfirmed: boolean;
+  usable: boolean;
   reason: string;
   updatedAt: number;
 }
@@ -82,6 +87,48 @@ export interface RegisterGateway {
   groups: GatewayGroup[];
   warnings: string[];
   error: string;
+}
+
+export interface RegisterProxyPoolSettings {
+  mode: 'disabled' | 'enforce';
+  maxUsableAccountsPerIp: number;
+  failureCooldownSeconds: number;
+}
+
+export interface RegisterProxyPoolNode {
+  group: string;
+  node: string;
+  exitIp: string;
+  status: string;
+  usableAccounts: number;
+  reserved: number;
+  assignments: number;
+  failures: number;
+  lastUsedAt: number;
+}
+
+export interface RegisterProxyPoolIp {
+  exitIp: string;
+  usableAccounts: number;
+  unusableAccounts: number;
+  reserved: number;
+  remaining: number;
+  lastUsedAt: number;
+  lastSuccessAt: number;
+}
+
+export interface RegisterProxyPool extends RegisterProxyPoolSettings {
+  enabled: boolean;
+  totalNodes: number;
+  readyNodes: number;
+  reserved: number;
+  exhaustedIps: number;
+  usableAccounts: number;
+  lastNode: string;
+  lastExitIp: string;
+  updatedAt: number;
+  nodes: RegisterProxyPoolNode[];
+  ips: RegisterProxyPoolIp[];
 }
 
 export interface RegisterSnapshot {

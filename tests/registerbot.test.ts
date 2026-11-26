@@ -8,6 +8,7 @@ import {
   createRegisterbotClient,
   readRegisterChannel,
   readRegisterEvent,
+  readRegisterProxyPool,
   readRegisterRun,
 } from '@/services/api/registerbot';
 import { apiClient } from '@/services/api/client';
@@ -126,6 +127,15 @@ describe('registration contracts and connection isolation', () => {
       'running',
       'cancelled',
       'partial',
+      'proxy_pool_refreshed',
+      'proxy_pool_updated',
+      'proxy_pool_unavailable',
+      'proxy_pool_no_nodes',
+      'proxy_pool_rotation_exhausted',
+      'proxy_pool_quota_exhausted',
+      'proxy_pool_state_failed',
+      'account_usable',
+      'welcome_credit_missing',
     ];
     const reasons = [
       'verification_failed',
@@ -139,6 +149,12 @@ describe('registration contracts and connection isolation', () => {
       'operator_cancelled',
       'manual_action_required',
       'attempt_failed',
+      'proxy_pool_unavailable',
+      'proxy_pool_no_nodes',
+      'proxy_pool_rotation_exhausted',
+      'proxy_pool_quota_exhausted',
+      'proxy_pool_state_failed',
+      'welcome_credit_missing',
       'target_reached',
       'invalid',
       'duplicate',
@@ -175,16 +191,60 @@ describe('registration contracts and connection isolation', () => {
         id: 'run',
         created_at: 1000,
         rows: [{ id: 'row', masked_key: 'sk-***', updated_at: 1500 }],
-        counters: { waiting_human: 1, pending_write: 2, harvested_keys: 3 },
+        counters: {
+          waiting_human: 1,
+          pending_write: 2,
+          harvested_keys: 3,
+          usable_accounts: 1,
+        },
       })
     ).toMatchObject({
       createdAt: 1000,
       rows: [{ maskedKey: 'sk-***', updatedAt: 1500 }],
-      counters: { waiting: 1, pendingWrite: 2, harvested: 3 },
+      counters: { waiting: 1, pendingWrite: 2, harvested: 3, usable: 1 },
     });
     expect(readRegisterEvent(wireEvent)).toMatchObject({ seq: 9, exitIp: '203.0.113.5' });
     expect(readRegisterEvent({ seq: '9', stage: 'queued' })).toBeNull();
     expect(readRegisterEvent({ seq: 9 })).toBeNull();
+  });
+
+  test('normalizes proxy pool quota and node views', () => {
+    expect(
+      readRegisterProxyPool({
+        enabled: true,
+        mode: 'enforce',
+        max_usable_accounts_per_ip: 3,
+        total_nodes: 2,
+        ready_nodes: 1,
+        usable_accounts: 4,
+        nodes: [
+          {
+            group: 'group',
+            node: 'node-a',
+            exit_ip: '203.0.113.40',
+            status: 'ready',
+            usable_accounts: 2,
+          },
+        ],
+        ips: [
+          {
+            exit_ip: '203.0.113.40',
+            usable_accounts: 2,
+            unusable_accounts: 1,
+            remaining: 1,
+          },
+        ],
+      })
+    ).toMatchObject({
+      enabled: true,
+      mode: 'enforce',
+      maxUsableAccountsPerIp: 3,
+      totalNodes: 2,
+      readyNodes: 1,
+      usableAccounts: 4,
+      nodes: [{ node: 'node-a', exitIp: '203.0.113.40', status: 'ready' }],
+      ips: [{ exitIp: '203.0.113.40', usableAccounts: 2, remaining: 1 }],
+    });
   });
 
   test('rejects a mutation after an ABA connection switch', async () => {
