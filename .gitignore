@@ -14,7 +14,12 @@
 /static/management.html
 /logs/
 /registerbot/
-/cpa-dev/deployment-backups/
+!/registerbot/settings.yaml
+/registerbot-bot/logs/
+/registerbot-bot/cache.db
+/registerbot-bot/provider.db
+/registerbot-bot/config.json
+/registerbot-bot/bot-core.pid
 /*.pid
 
 # Upstream source checkouts track their own git histories.
