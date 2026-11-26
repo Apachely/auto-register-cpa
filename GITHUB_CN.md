@@ -25,6 +25,17 @@ git clone --single-branch --branch feat-ly/registerbot-panel https://github.com/
 
 现有本机源码仓库保留 `origin` 指向各自上游，新增 `github` 指向本仓库；后续二开提交推送到对应源码分支。交付目录的 `origin` 指向本仓库。
 
+## 一键启动或重启
+
+双击仓库根目录的 `start-or-restart-cpa.cmd`。脚本会依次执行：
+
+1. 精确停止本仓库的 CPA 后端、Vite 前端、注册机浏览器和专用代理子进程，不停止 `12440/12450` 的现有统一代理网关；
+2. 后端源码比运行文件新时自动执行增量构建；
+3. 隐藏启动后端 `http://127.0.0.1:8317` 和前端 `http://127.0.0.1:5173`；
+4. 等待两个端口就绪，写入独立日志并打开前端登录页面。
+
+命令行也可使用 `start.ps1` 启动、`stop.ps1` 停止，或执行 `cpa-service.ps1 -Action Restart` 重启。运行文件保存在忽略目录 `.cpa-runtime/`，日志保存在 `logs/`。
+
 ## 2026-11-26 提交状态
 
 ### 注册代理池集成

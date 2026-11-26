@@ -13,6 +13,7 @@
 /cli-proxy-api.exe
 /static/management.html
 /logs/
+/.cpa-runtime/
 /registerbot/
 /cpa-dev/deployment-backups/
 /registerbot-bot/config.json
