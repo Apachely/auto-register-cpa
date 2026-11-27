@@ -12,6 +12,7 @@ import type {
   RunAction,
 } from '@/features/registerbot/types';
 import { apiClient } from './client';
+import { requireManagementRecord } from './managementResponse';
 
 const PATH = '/registerbot';
 const record = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
@@ -199,7 +200,7 @@ export function createRegisterbotClient(isActive: () => boolean, signal: AbortSi
     isCurrent,
     async snapshot(): Promise<RegisterSnapshot> {
       assertCurrent();
-      const item = record(await client.get(PATH, { signal }));
+      const item = requireManagementRecord(await client.get(PATH, { signal }));
       return {
         enabled: item.enabled === true,
         storageError: item.storage_error === true,
@@ -210,7 +211,7 @@ export function createRegisterbotClient(isActive: () => boolean, signal: AbortSi
     },
     async gateway(): Promise<RegisterGateway> {
       assertCurrent();
-      const item = record(await client.get(`${PATH}/gateway`, { signal }));
+      const item = requireManagementRecord(await client.get(`${PATH}/gateway`, { signal }));
       return {
         mode: text(item.mode),
         proxyUrl: text(item.proxy_url),
@@ -231,11 +232,15 @@ export function createRegisterbotClient(isActive: () => boolean, signal: AbortSi
     },
     async proxyPool(): Promise<RegisterProxyPool> {
       assertCurrent();
-      return readRegisterProxyPool(await client.get(`${PATH}/proxy-pool`, { signal }));
+      return readRegisterProxyPool(
+        requireManagementRecord(await client.get(`${PATH}/proxy-pool`, { signal }))
+      );
     },
     async start(channel: string, accounts: string) {
       assertCurrent();
-      const result = record(await client.post(`${PATH}/runs`, { channel, accounts }, { signal }));
+      const result = requireManagementRecord(
+        await client.post(`${PATH}/runs`, { channel, accounts }, { signal })
+      );
       return readRegisterRun(result.run);
     },
     async action(run: string, action: RunAction) {
@@ -257,12 +262,16 @@ export function createRegisterbotClient(isActive: () => boolean, signal: AbortSi
     async saveProxyPool(settings: RegisterProxyPoolSettings) {
       assertCurrent();
       return readRegisterProxyPool(
-        await client.put(`${PATH}/proxy-pool`, writeProxyPool(settings), { signal })
+        requireManagementRecord(
+          await client.put(`${PATH}/proxy-pool`, writeProxyPool(settings), { signal })
+        )
       );
     },
     async refreshProxyPool() {
       assertCurrent();
-      return readRegisterProxyPool(await client.post(`${PATH}/proxy-pool/refresh`, {}, { signal }));
+      return readRegisterProxyPool(
+        requireManagementRecord(await client.post(`${PATH}/proxy-pool/refresh`, {}, { signal }))
+      );
     },
     async saveChannel(channel: RegisterChannel) {
       assertCurrent();

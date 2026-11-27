@@ -5,6 +5,14 @@ import path from 'path';
 import { execSync } from 'child_process';
 import fs from 'fs';
 
+const DEFAULT_DEVELOPMENT_BACKEND = 'http://127.0.0.1:8317';
+
+const createBackendProxy = (target: string) => ({
+  target,
+  changeOrigin: true,
+  ws: true,
+});
+
 // Get version from environment, git tag, or package.json
 function getVersion(): string {
   // 1. Environment variable (set by GitHub Actions)
@@ -14,7 +22,10 @@ function getVersion(): string {
 
   // 2. Try git tag
   try {
-    const gitTag = execSync('git describe --tags --exact-match 2>/dev/null || git describe --tags 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+    const gitTag = execSync(
+      'git describe --tags --exact-match 2>/dev/null || git describe --tags 2>/dev/null || echo ""',
+      { encoding: 'utf8' }
+    ).trim();
     if (gitTag) {
       return gitTag;
     }
@@ -36,42 +47,59 @@ function getVersion(): string {
 }
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [
-    react(),
-    viteSingleFile({
-      removeViteModuleLoader: true
-    })
-  ],
-  define: {
-    __APP_VERSION__: JSON.stringify(getVersion())
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src')
-    }
-  },
-  css: {
-    modules: {
-      localsConvention: 'camelCase',
-      generateScopedName: '[name]__[local]___[hash:base64:5]'
+export default defineConfig(() => {
+  const backendTarget = process.env.CPA_BACKEND_URL?.trim() || DEFAULT_DEVELOPMENT_BACKEND;
+  const backendProxy = {
+    '/v8': createBackendProxy(backendTarget),
+    '/v0': createBackendProxy(backendTarget),
+    '/v1': createBackendProxy(backendTarget),
+  };
+
+  return {
+    plugins: [
+      react(),
+      viteSingleFile({
+        removeViteModuleLoader: true,
+      }),
+    ],
+    define: {
+      __APP_VERSION__: JSON.stringify(getVersion()),
     },
-    preprocessorOptions: {
-      scss: {
-        additionalData: `@use "@/styles/variables.scss" as *;`
-      }
-    }
-  },
-  build: {
-    target: 'es2020',
-    outDir: 'dist',
-    assetsInlineLimit: 100000000,
-    chunkSizeWarningLimit: 100000000,
-    cssCodeSplit: false,
-    rolldownOptions: {
-      output: {
-        codeSplitting: false
-      }
-    }
-  }
+    server: {
+      strictPort: true,
+      proxy: backendProxy,
+    },
+    preview: {
+      strictPort: true,
+      proxy: backendProxy,
+    },
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, './src'),
+      },
+    },
+    css: {
+      modules: {
+        localsConvention: 'camelCase',
+        generateScopedName: '[name]__[local]___[hash:base64:5]',
+      },
+      preprocessorOptions: {
+        scss: {
+          additionalData: `@use "@/styles/variables.scss" as *;`,
+        },
+      },
+    },
+    build: {
+      target: 'es2020',
+      outDir: 'dist',
+      assetsInlineLimit: 100000000,
+      chunkSizeWarningLimit: 100000000,
+      cssCodeSplit: false,
+      rolldownOptions: {
+        output: {
+          codeSplitting: false,
+        },
+      },
+    },
+  };
 });

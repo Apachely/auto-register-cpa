@@ -98,6 +98,23 @@ describe('v8 management transport', () => {
     expect((events[0] as CustomEvent).detail.version).toBe('v8.0.3');
     expect((events[1] as CustomEvent).detail.supportsPlugin).toBe(true);
   });
+
+  test('rejects a Vite HTML fallback instead of accepting an empty management response', async () => {
+    apiClient.setConfig({ apiBase: 'http://proxy.invalid', managementKey: 'fixture-only' });
+    const adapter: AxiosAdapter = async (config) => ({
+      data: '<!doctype html><html><body>Vite app</body></html>',
+      status: 200,
+      statusText: 'OK',
+      config,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    });
+
+    await expect(apiClient.get('/config', { adapter })).rejects.toMatchObject({
+      name: 'ApiError',
+      code: 'ERR_BAD_RESPONSE',
+      apiCode: 'invalid_management_response',
+    });
+  });
 });
 
 test('captured SIWC transport keeps original credentials and suppresses stale events, including ABA', async () => {

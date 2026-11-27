@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, spyOn } from 'bun:test';
 import { configApi } from '../src/services/api/config';
+import { apiClient } from '../src/services/api/client';
 import { useConfigStore } from '../src/stores/useConfigStore';
 import type { Config } from '../src/types';
 
@@ -10,6 +11,14 @@ afterEach(() => {
 });
 
 describe('v8 configuration cache', () => {
+  test('rejects a non-object config response instead of caching an empty document', async () => {
+    const request = spyOn(apiClient, 'get').mockResolvedValue('not a config');
+    await expect(configApi.getConfig()).rejects.toMatchObject({
+      apiCode: 'invalid_management_response',
+    });
+    request.mockRestore();
+  });
+
   test('optimistic UI updates do not add legacy nodes to the server document', async () => {
     const raw = {
       'config-version': 8,

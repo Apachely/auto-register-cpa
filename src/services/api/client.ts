@@ -15,6 +15,7 @@ import {
 } from '@/utils/constants';
 import { computeApiUrl } from '@/utils/connection';
 import { parseApiErrorResponse } from './apiError';
+import { createInvalidManagementResponseError, isHTMLResponse } from './managementResponse';
 
 class ApiClient {
   private instance: AxiosInstance;
@@ -141,6 +142,15 @@ class ApiClient {
     this.instance.interceptors.response.use(
       (response) => {
         const headers = response.headers as Record<string, string | undefined>;
+        const contentType = this.readHeader(headers, ['content-type']);
+        if (isHTMLResponse(response.data, contentType)) {
+          return Promise.reject(
+            createInvalidManagementResponseError({
+              contentType,
+              requestUrl: response.config.url,
+            })
+          );
+        }
         const cpaVersion = this.readHeader(headers, CPA_VERSION_HEADER_KEYS);
         const cpaBuildDate = this.readHeader(headers, CPA_BUILD_DATE_HEADER_KEYS);
         const version = cpaVersion || this.readHeader(headers, VERSION_HEADER_KEYS);

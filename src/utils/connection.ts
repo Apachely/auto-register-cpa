@@ -1,5 +1,14 @@
 import { DEFAULT_API_PORT, MANAGEMENT_API_PREFIX } from './constants';
 
+const LOCAL_DEVELOPMENT_HOSTS = new Set(['127.0.0.1', 'localhost']);
+const LOCAL_DEVELOPMENT_FRONTEND_PORTS = new Set(['4173', '5173']);
+
+interface ApiLocation {
+  protocol: string;
+  hostname: string;
+  port: string;
+}
+
 export const normalizeApiBase = (input: string): string => {
   let base = (input || '').trim();
   if (!base) return '';
@@ -17,11 +26,17 @@ export const computeApiUrl = (base: string): string => {
   return `${normalized}${MANAGEMENT_API_PREFIX}`;
 };
 
+export const resolveApiBaseFromLocation = ({ protocol, hostname, port }: ApiLocation): string => {
+  const isLocalDevelopmentFrontend =
+    LOCAL_DEVELOPMENT_HOSTS.has(hostname) && LOCAL_DEVELOPMENT_FRONTEND_PORTS.has(port);
+  const resolvedPort = isLocalDevelopmentFrontend ? String(DEFAULT_API_PORT) : port;
+  const normalizedPort = resolvedPort ? `:${resolvedPort}` : '';
+  return normalizeApiBase(`${protocol}//${hostname}${normalizedPort}`);
+};
+
 export const detectApiBaseFromLocation = (): string => {
   try {
-    const { protocol, hostname, port } = window.location;
-    const normalizedPort = port ? `:${port}` : '';
-    return normalizeApiBase(`${protocol}//${hostname}${normalizedPort}`);
+    return resolveApiBaseFromLocation(window.location);
   } catch (error) {
     console.warn('Failed to detect api base from location, fallback to default', error);
     return normalizeApiBase(`http://localhost:${DEFAULT_API_PORT}`);

@@ -75,6 +75,17 @@ describe('registration event stream', () => {
 });
 
 describe('registration contracts and connection isolation', () => {
+  test('rejects a non-object snapshot instead of showing an empty channel list', async () => {
+    const captured = apiClient.captureConnection();
+    spyOn(captured, 'get').mockResolvedValue('<html>not the registerbot API</html>');
+    spyOn(apiClient, 'captureConnection').mockReturnValue(captured);
+    const client = createRegisterbotClient(() => true, new AbortController().signal);
+
+    await expect(client.snapshot()).rejects.toMatchObject({
+      apiCode: 'invalid_management_response',
+    });
+  });
+
   test('provides labels for every fixed backend stage and failure reason', async () => {
     const locale = await Bun.file('src/i18n/locales/en.json').json();
     const stages = [
