@@ -11,6 +11,13 @@ import (
 	"github.com/MoeForge/moego/json"
 )
 
+const (
+	freeAIPollInterval       = 250 * time.Millisecond
+	freeAIActionRetryDelay   = 3 * time.Second
+	freeAIFastFailureDelay   = 6 * time.Second
+	freeAIFastActionAttempts = 2
+)
+
 // FreeAIDriver follows the provider's visible Google sign-in flow. Challenges
 // remain resumable manual work; no challenge or identity checks are bypassed.
 type FreeAIDriver struct{ settings func() Settings }
@@ -93,15 +100,14 @@ func selectFreeAIRadio(ctx context.Context, session *Session, name, value string
 	return nil
 }
 
-// Run retains an isolated page on manual handoff so the operator can resolve a
-// challenge and resume the same registration without submitting credentials again.
+// Run is fully unattended. Any challenge, unavailable control, or bounded wait
+// failure closes the isolated page and returns an account failure.
 func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, runErr error) {
 	if task == nil {
 		return harvest, errors.New("registerbot: missing registration task")
 	}
 	if task.Channel.ManualMode {
-		task.Report("manual", "warn", "manual completion requested")
-		return harvest, ErrManualHandoff
+		return harvest, errors.New("registerbot: manual mode is disabled for unattended registration")
 	}
 	start := strings.TrimSpace(task.Channel.StartURL)
 	if start == "" {
@@ -114,24 +120,19 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 	if d.settings != nil {
 		set = d.settings()
 	}
-	acquireCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	acquireCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	session, errOpen := task.OpenSession(acquireCtx, start)
+	openCtx, openCancel := context.WithTimeout(acquireCtx, set.Browser.StartupTimeout())
+	session, errOpen := task.OpenSession(openCtx, start)
+	openCancel()
 	if errOpen != nil {
 		if ctx.Err() != nil {
 			return harvest, ctx.Err()
-		}
-		if errors.Is(errOpen, ErrManualHandoff) {
-			task.Report("manual", "warn", "browser unavailable; complete registration and supply the API key")
-			return harvest, ErrManualHandoff
 		}
 		task.Report("network_error", "warn", "browser navigation failed; queue retry follows")
 		return harvest, errOpen
 	}
 	defer func() {
-		if errors.Is(runErr, ErrManualHandoff) {
-			return
-		}
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer closeCancel()
 		_ = session.CloseTarget(closeCtx)
@@ -148,19 +149,20 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 	sawOnboarding, creditConfirmed := false, false
 	surveyCompleted := false
 	claimAttempted := false
-	ticker := time.NewTicker(700 * time.Millisecond)
+	ticker := time.NewTicker(freeAIPollInterval)
 	defer ticker.Stop()
 	for {
 		if errContext := acquireCtx.Err(); errContext != nil {
 			if ctx.Err() != nil {
 				return harvest, ctx.Err()
 			}
-			task.Report("manual", "warn", "registration is awaiting operator completion")
-			return harvest, ErrManualHandoff
+			return harvest, errors.New("registerbot: registration deadline exceeded")
 		}
 		var page freeAIPage
-		_ = session.FollowAuthorizationPopup(acquireCtx)
-		value, errInspect := session.Evaluate(acquireCtx, freeAIInspectScript, false)
+		inspectCtx, inspectCancel := context.WithTimeout(acquireCtx, set.Browser.StepTimeout())
+		_ = session.FollowAuthorizationPopup(inspectCtx)
+		value, errInspect := session.Evaluate(inspectCtx, freeAIInspectScript, false)
+		inspectCancel()
 		if errInspect == nil {
 			encoded, errEncode := json.Marshal(value)
 			if errEncode == nil {
@@ -168,6 +170,9 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			}
 		}
 		if errInspect != nil {
+			if errors.Is(errInspect, context.DeadlineExceeded) {
+				return harvest, errors.New("registerbot: page inspection exceeded 10 seconds")
+			}
 			if session.client.loadErr() != nil {
 				return harvest, errors.New("registerbot: browser connection lost")
 			}
@@ -199,15 +204,24 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 		// Only repeat navigation/continuation actions; never toggle a revealed
 		// key or submit the onboarding credit claim twice automatically.
 		credentialStep := page.Action == "email" || page.Action == "password"
-		if acted && retryFreeAIAction(page.Action) && actionAttempts < 3 && time.Since(lastDispatch) >= 4*time.Second {
+		fastTransition := credentialStep || page.Action == "google"
+		retryLimit := 3
+		if fastTransition {
+			retryLimit = freeAIFastActionAttempts
+		}
+		if acted && retryFreeAIAction(page.Action) && actionAttempts < retryLimit && time.Since(lastDispatch) >= freeAIActionRetryDelay {
 			acted = false
 			task.Report(page.Action, "warn", "action_retry")
+		}
+		if fastTransition && acted && actionAttempts >= retryLimit && time.Since(lastDispatch) >= freeAIFastFailureDelay {
+			task.CaptureEvidence(acquireCtx, session, page.Action+"-stalled")
+			task.Report(page.Action, "warn", "sign-in step did not advance; rotating the route immediately")
+			return harvest, errors.New("registerbot: sign-in step did not advance after confirmed submissions")
 		}
 		if page.Action == "key" && freeAIHost(page.URL) && keyPattern.MatchString(page.Key) {
 			if sawOnboarding {
 				if !surveyCompleted {
-					task.Report("onboarding_profile_required", "warn", "survey completion was not confirmed; retain the guide before capture")
-					return harvest, ErrManualHandoff
+					return harvest, errors.New("registerbot: survey completion was not confirmed")
 				}
 				message := "required survey completed; full Default Key captured"
 				if !creditConfirmed {
@@ -226,8 +240,8 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			return harvest, failure
 		}
 		if page.Action == "challenge" || page.Action == "blocked" {
-			task.Report("manual", "warn", "Google requires operator verification; finish in the retained browser and resume")
-			return harvest, ErrManualHandoff
+			task.Report(page.Action, "warn", "Google verification requires manual input; unattended registration failed")
+			return harvest, errors.New("registerbot: Google verification requires manual input")
 		}
 		// The submit label/fingerprint changes while the credit request is in
 		// flight. Do not interpret that change as permission to claim again.
@@ -236,62 +250,76 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 		}
 		if !acted && errInspect == nil {
 			var errAction error
+			fatalAction := false
+			actionCtx, actionCancel := context.WithTimeout(acquireCtx, set.Browser.StepTimeout())
 			switch page.Action {
 			case "onboarding_entry":
-				errAction = session.Navigate(acquireCtx, "https://freeaiapikey.com/setup")
+				errAction = session.Navigate(actionCtx, "https://freeaiapikey.com/setup")
 			case "onboarding_profile":
 				role, source := task.Channel.onboardingAnswers()
-				errAction = selectFreeAIRadio(acquireCtx, session, "role", role)
+				errAction = selectFreeAIRadio(actionCtx, session, "role", role)
 				if errAction == nil {
-					errAction = selectFreeAIRadio(acquireCtx, session, "source", source)
+					errAction = selectFreeAIRadio(actionCtx, session, "source", source)
 				}
 				if errAction == nil {
 					claimAttempted = true
-					errAction = session.ClickText(acquireCtx, "Get my $5")
+					errAction = session.ClickText(actionCtx, "Get my $5")
 					if errors.Is(errAction, errControlNotReady) {
 						claimAttempted = false // No input was dispatched; safely wait for the control.
 					}
 				}
 			case "onboarding_credit", "onboarding_tool", "onboarding_test", "onboarding_discord", "onboarding_plans":
 				if !surveyCompleted {
-					task.Report("onboarding_profile_required", "warn", "survey completion has not been confirmed; retain the survey before capture")
-					return harvest, ErrManualHandoff
+					errAction = errors.New("registerbot: survey completion has not been confirmed")
+					fatalAction = true
+					break
 				}
-				errAction = session.ClickText(acquireCtx, "Finish later and go to my dashboard", "Open my dashboard")
+				errAction = session.ClickText(actionCtx, "Finish later and go to my dashboard", "Open my dashboard")
 			case "onboarding_unknown":
 				// Redirects can expose /setup before its controls are rendered.
 				// Wait within the existing step deadline, not an immediate handoff.
 				errAction = errControlNotReady
 			case "email":
 				if !googleIdentityHost(page.URL) {
-					return harvest, errors.New("registerbot: refusing credentials outside Google identity origin")
+					errAction = errors.New("registerbot: refusing credentials outside Google identity origin")
+					fatalAction = true
+					break
 				}
-				errAction = session.TypeInto(acquireCtx, "#identifierId,input[name=identifier],input[type=email]", "email", task.Account.Email)
+				errAction = session.TypeInto(actionCtx, "#identifierId,input[name=identifier],input[type=email]", "email", task.Account.Email)
 				if errAction == nil {
-					errAction = session.SubmitGoogleCredential(acquireCtx, "email", task.Account.Email)
+					errAction = session.SubmitGoogleCredential(actionCtx, "email", task.Account.Email)
 				}
 			case "password":
 				if !googleIdentityHost(page.URL) {
-					return harvest, errors.New("registerbot: refusing credentials outside Google identity origin")
+					errAction = errors.New("registerbot: refusing credentials outside Google identity origin")
+					fatalAction = true
+					break
 				}
-				errAction = session.TypeInto(acquireCtx, "input[type=password]", "password", task.Account.Password)
+				errAction = session.TypeInto(actionCtx, "input[type=password]", "password", task.Account.Password)
 				if errAction == nil {
-					errAction = session.SubmitGoogleCredential(acquireCtx, "password", task.Account.Password)
+					errAction = session.SubmitGoogleCredential(actionCtx, "password", task.Account.Password)
 				}
 			case "choose_account":
-				errAction = session.ClickText(acquireCtx, task.Account.Email, "Use another account", "使用其他帐号", "使用其他账号")
+				errAction = session.ClickText(actionCtx, task.Account.Email, "Use another account", "使用其他帐号", "使用其他账号")
 			case "consent":
-				errAction = session.ClickText(acquireCtx, "Continue", "继续", "Allow", "允许", "I agree", "我同意", "Accept", "接受", "Next", "下一步", "I understand", "我了解", "我知道了", "我明白了")
+				errAction = session.ClickText(actionCtx, "Continue", "继续", "Allow", "允许", "I agree", "我同意", "Accept", "接受", "Next", "下一步", "I understand", "我了解", "我知道了", "我明白了")
 			case "speedbump":
-				errAction = session.AcceptWorkspaceTerms(acquireCtx)
+				errAction = session.AcceptWorkspaceTerms(actionCtx)
 			case "google":
-				errAction = session.ClickText(acquireCtx, "Continue with Google", "Sign in with Google", "使用 Google", "Google")
+				errAction = session.ClickText(actionCtx, "Continue with Google", "Sign in with Google", "使用 Google", "Google")
 			case "reveal":
-				errAction = session.ClickText(acquireCtx, "Show API key", "Show key", "Reveal", "显示", "查看密钥")
+				errAction = session.ClickText(actionCtx, "Show API key", "Show key", "Reveal", "显示", "查看密钥")
 			case "dashboard":
-				errAction = session.Navigate(acquireCtx, "https://freeaiapikey.com/dashboard")
+				errAction = session.Navigate(actionCtx, "https://freeaiapikey.com/dashboard")
 			default:
 				errAction = errors.New("waiting for page")
+			}
+			actionCancel()
+			if fatalAction {
+				return harvest, errAction
+			}
+			if errors.Is(errAction, context.DeadlineExceeded) {
+				return harvest, errors.New("registerbot: browser action exceeded 10 seconds")
 			}
 			if errAction == nil {
 				acted = true
@@ -326,14 +354,19 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 			}
 		}
 		if time.Since(lastProgress) >= set.Browser.StepTimeout() {
+			evidence := task.CaptureEvidence(acquireCtx, session, page.Action+"-timeout")
+			evidenceMessage := ""
+			if evidence != "" {
+				evidenceMessage = "; evidence=" + evidence
+			}
 			if googleIdentityHost(page.URL) && !page.HumanChallenge && page.Action != "blocked" && page.Action != "challenge" {
 				// A stalled ordinary sign-in page is not an identity challenge.
 				// Close this context and let the queue's bounded retry policy run.
-				task.Report(page.Action, "warn", "sign-in page timed out; restarting this account automatically")
+				task.Report(page.Action, "warn", "sign-in page timed out; restarting this account automatically"+evidenceMessage)
 				return harvest, errors.New("registerbot: ordinary sign-in page timed out")
 			}
-			task.Report("manual", "warn", "page did not advance; retained browser is ready for operator continuation")
-			return harvest, ErrManualHandoff
+			task.Report(page.Action, "warn", "page did not advance within 10 seconds; unattended registration failed"+evidenceMessage)
+			return harvest, errors.New("registerbot: page did not advance within 10 seconds")
 		}
 		select {
 		case <-acquireCtx.Done():
@@ -415,10 +448,10 @@ const freeAIInspectScript = `(function(){
   else if(text.includes('wrong password')||text.includes('密码错误')||text.includes("couldn’t find your google account")||text.includes("couldn't find your google account")){action='invalid_credentials';}
   else if(has('input[type=password]')){action='password';}
   else if(has('#identifierId,input[name=identifier],input[type=email]')){action='email';}
+  else if(text.includes('choose an account')||text.includes('选择帐号')||text.includes('选择账号')){action='choose_account';}
   else if(text.includes('this browser or app may not be secure')||text.includes('此浏览器或应用可能不安全')){action='blocked';}
   else if(path.includes('/challenge/')||humanChallenge){action='challenge';}
-  else if(path.includes('speedbump')||path.includes('consent')||text.includes('i understand')||text.includes('我了解')||text.includes('我同意')||text.includes('wants access')||text.includes('sign in to')){action='consent';}
-  else if(text.includes('choose an account')||text.includes('选择帐号')||text.includes('选择账号')){action='choose_account';}
+  else if(path.includes('speedbump')||path.includes('consent')||text.includes('i understand')||text.includes('我了解')||text.includes('我同意')||text.includes('wants access')){action='consent';}
   else if(Array.from(document.querySelectorAll('button,[role=button],input[type=submit]')).some(function(e){return visible(e)&&/^(continue|allow|i agree|next|继续|允许|我同意)$/i.test((e.innerText||e.value||'').trim());})){action='consent';}
  } else if(free){
   var normal=(bodyText.match(/Normal(?:\s+credits)?\s+\$([0-9,.]+)/i)||[])[1];
@@ -426,8 +459,10 @@ const freeAIInspectScript = `(function(){
   if(path==='/setup'||path.startsWith('/setup/')){
    var step=(bodyText.match(/\bStep\s*([1-5])\s*of\s*5\b/i)||[])[1];
    creditConfirmed=creditConfirmed||(has('#surveyDone')&&text.includes('$5.00 is in your balance.'));
-   surveyCompleted=creditConfirmed||(has('#surveyDone')&&text.includes('your answers are saved'));
-   if(surveyCompleted){action='onboarding_credit';}
+   var savedSurvey=has('#surveyDone')&&(text.includes('your answers are saved')||creditConfirmed);
+   var laterStep=step==='2'||step==='3'||step==='4'||step==='5';
+   surveyCompleted=creditConfirmed||savedSurvey||laterStep;
+   if(creditConfirmed||savedSurvey){action='onboarding_credit';}
    else if(has('#surveySubmit')||has('#surveyForm')||step==='1'){action='onboarding_profile';}
    else if(step==='2'){action='onboarding_tool';}
    else if(step==='3'){action='onboarding_test';}

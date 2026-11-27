@@ -1,8 +1,8 @@
 # Registration engine
 
 `registerbot` adds persistent registration queues to the authenticated v8
-management API. The engine is initialized on the first registration API request;
-ordinary CPA startup does not launch Chrome. The first supplied driver is
+management API. The engine is initialized on the first registration API request
+and immediately prewarms a bounded isolated Chrome pool. The first supplied driver is
 `freeaiapikey`. Multiple channel configurations can use that driver independently.
 
 ## Queue and recovery
@@ -88,9 +88,11 @@ waits within the acquisition deadline, recognizes the actual submit control
 even when the form uses `display: contents`, and reads back both checked radio
 states before submitting. A transient unknown setup state is not an immediate
 manual handoff.
-Ordinary Google sign-in page timeouts close the stalled context and use the
-queue's bounded account retry policy. Explicit CAPTCHA/MFA/security challenges
-still preserve the account's manual checkpoint; they are not bypassed.
+Ordinary Google sign-in timeouts, CAPTCHA/MFA/security challenges, unavailable
+controls, and unknown pages close the isolated context and fail the row. The
+automatic channel never waits for operator intervention. Browser startup,
+gateway pinning, each DOM operation, and key verification are bounded to ten
+seconds per wait.
 
 Survey completion is separate from welcome-credit eligibility. When the provider
 says the answers are saved but no reward is available, the driver records that
@@ -118,7 +120,10 @@ public model lists still fail verification.
 
 Gateway fallback is `controller -> proxy_only -> disabled`. Discovery tries an
 explicit controller first, then candidates derived from the forwarding port; the
-default proxy is `http://127.0.0.1:12450`, whose candidates include port `12440`.
+default registration proxy is `http://127.0.0.1:11460` with its explicit,
+registration-only controller at `http://127.0.0.1:11461`. When an explicit
+controller is configured, discovery never probes adjacent ports. This prevents
+registration node rotation from mutating the operator's system proxy.
 Controller failure keeps forwarding through the proxy. Forwarding failure selects
 direct connections. Manual keys and pending imports are probed again before
 verification, so they also use this fallback and can recover a restored proxy.
@@ -140,14 +145,15 @@ shared between accounts.
 
 Browser fallback is `embedded -> attach -> system -> manual`. Embedded and system
 modes use an installed Chrome/Chromium/Edge binary with an isolated profile, not a
-bundled browser download. A bounded pool reuses managed processes; each account
+bundled browser download or the operator's personal profile. A bounded pool reuses
+managed processes and stable private profile slots; each account
 gets a separate disposable browser context with its own forwarding setting.
 Attach mode requires a configured DevTools endpoint and does not take ownership
 of that browser process. Loopback debugging ports are allocated dynamically.
 
-Manual handoff retains the account page while CPA remains running. Complete the
-visible verification step and resume the run, or submit an obtained API key for
-verification and import. CAPTCHA, MFA, and other identity checks are not bypassed.
+Manual mode remains an explicit compatibility option for separately configured
+channels. The default automatic channel never enters it. CAPTCHA, MFA, and other
+identity checks are not bypassed; the row fails immediately instead.
 On disconnect, disposable contexts close. A restart can recover a still-running
 owned browser only when its persisted browser endpoint UUID matches, but the
 account page checkpoint is not restored; unfinished registration resumes from the
@@ -161,7 +167,8 @@ The generated `settings.yaml` is authoritative. Representative active defaults:
 ```yaml
 enabled: true
 gateway:
-  proxy-url: http://127.0.0.1:12450
+  proxy-url: http://127.0.0.1:11460
+  controller-url: http://127.0.0.1:11461
   share-mode: lease
   verify-exit-ip: true
   exit-ip-url: https://api.ipify.org?format=json
@@ -174,22 +181,23 @@ proxy-pool:
 browser:
   mode: embedded
   pool-size: 2
-  startup-timeout-seconds: 40
-  step-timeout-seconds: 120
-  retire-after: 8
+  warm-pool-size: 1
+  startup-timeout-seconds: 10
+  step-timeout-seconds: 10
+  retire-after: 32
 channels:
   - id: freeaiapikey
     kind: freeaiapikey
     name: FreeAIapikey
     enabled: true
     provider: FreeAi
-    proxy-url: http://127.0.0.1:12450
+    proxy-url: http://127.0.0.1:11460
     concurrency: 2
     group: 节点选择
     rotate-node: false
     interval-seconds: 2
     step-delay-millis: 900
-    max-attempts: 2
+    max-attempts: 1
 ```
 
 Channel updates use the management API and require active account workers to be

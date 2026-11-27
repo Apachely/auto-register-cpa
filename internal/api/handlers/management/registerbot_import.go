@@ -45,11 +45,22 @@ func registerBotVerificationModel(source []byte, channel registerbot.ChannelSett
 		if group.Name != channel.Provider {
 			continue
 		}
+		var fallback registerBotProbeModel
 		for _, model := range group.Models {
 			model.Name = strings.TrimSpace(model.Name)
-			if model.Name != "" {
+			if model.Name == "" {
+				continue
+			}
+			if fallback.Name == "" {
+				fallback = model
+			}
+			name := strings.ToLower(model.Name)
+			if strings.Contains(name, "flash") || strings.Contains(name, "mini") || strings.Contains(name, "haiku") || strings.Contains(name, "sol") {
 				return model, nil
 			}
+		}
+		if fallback.Name != "" {
+			return fallback, nil
 		}
 	}
 	return registerBotProbeModel{}, errors.New("registerbot: verification requires a configured provider model")
@@ -121,12 +132,17 @@ func registerBotImportPlan(source []byte, channel registerbot.ChannelSettings, k
 	if channel.ProxyURL == "" {
 		return nil, "", false, errors.New("registerbot: provider proxy missing")
 	}
-	for _, existing := range group.Keys {
+	for keyIndex, existing := range group.Keys {
 		if existing.Key == key {
-			if existing.Proxy != channel.ProxyURL {
-				return nil, "", false, errors.New("registerbot: provider proxy mismatch")
+			if existing.Proxy == channel.ProxyURL {
+				return nil, base + "/chat/completions", true, nil
 			}
-			return nil, base + "/chat/completions", true, nil
+			doc := ojson.NewDoc(source)
+			path := fmt.Sprintf("%d.keys.%d.proxy-url", index, keyIndex)
+			if errSet := doc.Set(path, channel.ProxyURL); errSet != nil {
+				return nil, "", false, errors.New("registerbot: provider proxy migration failed")
+			}
+			return doc.Bytes(), base + "/chat/completions", false, nil
 		}
 	}
 	doc := ojson.NewDoc(source)
@@ -183,9 +199,9 @@ func verifyRegisterBotKey(ctx context.Context, endpoint, proxy, key string, mode
 		MaxCompletionTokens int                 `json:"max_completion_tokens,omitempty"`
 	}{Model: model.Name, Messages: []map[string]string{{"role": "user", "content": "Hi"}}}
 	if model.UseMaxCompletionTokens {
-		payload.MaxCompletionTokens = 5
+		payload.MaxCompletionTokens = 1
 	} else {
-		payload.MaxTokens = 5
+		payload.MaxTokens = 1
 	}
 	body, errMarshal := json.Marshal(payload)
 	if errMarshal != nil {
@@ -229,7 +245,7 @@ func verifyRegisterBotKey(ctx context.Context, endpoint, proxy, key string, mode
 		return errors.New("registerbot: key verification returned no assistant completion")
 	}
 	choice := completion.Choices[0]
-	// The five-token probe can be exhausted by reasoning before the model
+	// The one-token probe can be exhausted by reasoning before the model
 	// emits final content. Actual reasoning output plus a token-limited finish
 	// and nonzero generated tokens still proves authenticated inference.
 	reasoningAtLimit := choice.FinishReason == "length" && completion.Usage.CompletionTokens > 0 &&

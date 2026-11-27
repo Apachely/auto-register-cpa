@@ -16,7 +16,7 @@ import (
 
 // Gateway is the unified gateway layer above the registration channels.
 //
-// It talks to the operator's local proxy (default http://127.0.0.1:12450) on two
+// It talks to the registration-only proxy (default http://127.0.0.1:11460) on two
 // planes:
 //   - the forwarding plane, used as the HTTP proxy for browsers and API checks;
 //   - the control plane, a Clash compatible controller used to list groups and
@@ -219,6 +219,11 @@ func candidateControllers(proxyURL string, explicit string) []string {
 		out = append(out, raw)
 	}
 	add(explicit)
+	if strings.TrimSpace(explicit) != "" {
+		// An explicit controller is an isolation boundary. Never fall back to an
+		// adjacent controller that may own the operator's system proxy.
+		return out
+	}
 	parsed, errParse := url.Parse(strings.TrimSpace(proxyURL))
 	if errParse != nil || parsed.Host == "" {
 		return out
@@ -536,7 +541,9 @@ func (g *Gateway) Pin(ctx context.Context, group, node string) (PinResult, error
 		result.Degraded = "controller did not confirm the selected node"
 	}
 	if set.Gateway.VerifyExitIP {
-		if ip, errIP := g.ExitIP(pinCtx); errIP == nil {
+		if verified, valid := normalizeExitIP(set.Gateway.VerifiedExits[node]); valid {
+			result.ExitIP = verified
+		} else if ip, errIP := g.ExitIP(pinCtx); errIP == nil {
 			result.ExitIP = ip
 		} else {
 			result.Degraded = "node selected; exit address unverified"

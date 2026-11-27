@@ -3,6 +3,7 @@ package registerbot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,6 +146,9 @@ func NewEngine(stateDir string, settings Settings, importer ImportFunc, drivers 
 		}
 		settings = loaded
 	}
+	if errHealthy := applyHealthyNodes(&settings, stateDir); errHealthy != nil {
+		return nil, errHealthy
+	}
 	if err := validateSettings(&settings); err != nil {
 		return nil, err
 	}
@@ -171,6 +175,11 @@ func NewEngine(stateDir string, settings Settings, importer ImportFunc, drivers 
 		cancel()
 		_ = bus.Close()
 		return nil, errProxyPool
+	}
+	if errHealth := proxyPool.ApplyHealth(settings.Gateway.VerifiedExits); errHealth != nil {
+		cancel()
+		_ = bus.Close()
+		return nil, errHealth
 	}
 	e.proxyPool = proxyPool
 	e.runAccount = e.execute
@@ -217,6 +226,7 @@ func NewEngine(stateDir string, settings Settings, importer ImportFunc, drivers 
 		return nil, err
 	}
 	e.startWorkersLocked()
+	e.startBrowserWarmup(settings)
 	return e, nil
 }
 
@@ -452,6 +462,26 @@ func (e *Engine) startWorkersLocked() {
 	}
 }
 
+func (e *Engine) startBrowserWarmup(settings Settings) {
+	if settings.Browser.Mode == BrowserModeManual || settings.Browser.WarmPoolSize <= 0 {
+		return
+	}
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+		timeout := settings.Browser.StartupTimeout() * time.Duration(settings.Browser.WarmPoolSize)
+		ctx, cancel := context.WithTimeout(e.ctx, timeout)
+		defer cancel()
+		if errWarm := e.pool.Warm(ctx, settings.Browser.WarmPoolSize); errWarm != nil {
+			if e.ctx.Err() == nil {
+				log.WithError(errWarm).WithField("component", "registerbot").Warn("isolated browser prewarm failed")
+			}
+			return
+		}
+		log.WithFields(log.Fields{"component": "registerbot", "count": settings.Browser.WarmPoolSize}).Info("isolated browser pool ready")
+	}()
+}
+
 func (e *Engine) signalLocked() { close(e.wake); e.wake = make(chan struct{}) }
 
 func (e *Engine) worker(channelID string) {
@@ -615,11 +645,21 @@ func (e *Engine) worker(channelID string) {
 			row.View.Stage = StagePendingWrite
 			row.View.Reason = importReason(errRun)
 			row.Continue = true
-		case errors.Is(errRun, ErrManualHandoff):
+		case errors.Is(errRun, ErrManualHandoff) && channelCopy.ManualMode:
 			row.View.Stage = StageWaitingHuman
 			row.View.Reason = "manual_action_required"
 			row.Continue = true
 		default:
+			var navigationError *NavigationError
+			var errAbandon error
+			if errors.As(errRun, &navigationError) {
+				errAbandon = e.proxyPool.FailReservation(row.View.ID, "navigation_error")
+			} else {
+				errAbandon = e.proxyPool.Abandon(row.View.ID)
+			}
+			if errAbandon != nil {
+				log.WithError(errAbandon).WithField("component", "registerbot").Warn("proxy reservation cleanup failed after account attempt")
+			}
 			row.View.Reason = proxyPoolReason(errRun)
 			if row.View.Reason == "" {
 				row.View.Reason = "attempt_failed"
@@ -657,7 +697,8 @@ func (e *Engine) execute(ctx context.Context, task *Task, harvest Harvest) (Harv
 			return Harvest{}, ErrManualHandoff
 		}
 		task.Report(StagePinning, "info", "acquiring channel gateway")
-		status := e.gateway.Probe(ctx, false)
+		pinCtx, pinCancel := context.WithTimeout(ctx, automaticWaitLimit)
+		status := e.gateway.Probe(pinCtx, false)
 		if status.Mode != GatewayModeController {
 			task.Report("gateway_degraded", "warning", status.Mode)
 		}
@@ -665,7 +706,7 @@ func (e *Engine) execute(ctx context.Context, task *Task, harvest Harvest) (Harv
 		var pin PinResult
 		var errPin error
 		if e.proxyPool.Enabled() {
-			pin, errPin = e.proxyPool.Acquire(ctx, pinChannel, task.RowID)
+			pin, errPin = e.proxyPool.Acquire(pinCtx, pinChannel, task.RowID)
 			if errPin == nil {
 				defer e.proxyPool.ReleaseRoute(task.Channel.Group, task.RowID)
 			}
@@ -674,15 +715,20 @@ func (e *Engine) execute(ctx context.Context, task *Task, harvest Harvest) (Harv
 				pinChannel.Nodes = []string{task.node}
 				pinChannel.RotateNode = false
 			}
-			pin, errPin = e.gateway.Acquire(ctx, pinChannel, task.RowID)
+			pin, errPin = e.gateway.Acquire(pinCtx, pinChannel, task.RowID)
 			if errPin == nil {
 				defer e.gateway.Release(task.Channel.Group, task.RowID)
 			}
 		}
+		pinCancel()
 		if ctx.Err() != nil {
 			return Harvest{}, ctx.Err()
 		}
 		if errPin != nil {
+			if errors.Is(errPin, context.DeadlineExceeded) {
+				task.Report("proxy_pool_unavailable", "warning", "gateway selection exceeded 10 seconds")
+				return Harvest{}, errPin
+			}
 			if reason := proxyPoolReason(errPin); reason != "" {
 				task.Report(reason, "warning", reason)
 				return Harvest{}, errPin
@@ -706,7 +752,7 @@ func (e *Engine) execute(ctx context.Context, task *Task, harvest Harvest) (Harv
 				if ctx.Err() != nil {
 					return Harvest{}, ctx.Err()
 				}
-				return Harvest{}, ErrManualHandoff
+				return Harvest{}, fmt.Errorf("registerbot: browser unavailable: %w", errAcquire)
 			}
 			task.browser = instance
 			defer e.pool.Release(instance)
@@ -774,7 +820,10 @@ func (e *Engine) execute(ctx context.Context, task *Task, harvest Harvest) (Harv
 	if e.importer == nil {
 		return harvest, errors.New("registerbot: importer unavailable")
 	}
-	if errImport := e.importer(ctx, task.Channel, harvest); errImport != nil {
+	importCtx, importCancel := context.WithTimeout(ctx, automaticWaitLimit)
+	errImport := e.importer(importCtx, task.Channel, harvest)
+	importCancel()
+	if errImport != nil {
 		return harvest, errImport
 	}
 	task.Report(StageWritingKey, "info", "key_verified_imported")

@@ -86,11 +86,33 @@ func TestRegisterBotImportRejectsDestinationDrift(t *testing.T) {
 		`[]`,
 		`[{"name":"FreeAi","base-url":"https://unrelated.invalid/v1"}]`,
 		`[{"name":"FreeAi"},{"name":"FreeAi"}]`,
-		`[{"name":"FreeAi","base-url":"https://api.freeaiapikey.com/v1","keys":[{"api-key":"` + importTestKey + `","proxy-url":"direct"}]}]`,
 	} {
 		if _, _, _, errPlan := registerBotImportPlan([]byte(source), channel, importTestKey); errPlan == nil {
 			t.Fatal("unsafe destination accepted")
 		}
+	}
+}
+
+func TestRegisterBotImportMigratesMatchingKeyToDedicatedProxy(t *testing.T) {
+	channel := registerbot.DefaultFreeAIChannel()
+	source := []byte(`[{"name":"FreeAi","base-url":"https://api.freeaiapikey.com/v1","keys":[{"api-key":"` + importTestKey + `","proxy-url":"http://127.0.0.1:12450","priority":7}]}]`)
+	next, endpoint, present, errPlan := registerBotImportPlan(source, channel, importTestKey)
+	if errPlan != nil || present || endpoint != "https://api.freeaiapikey.com/v1/chat/completions" {
+		t.Fatalf("migration endpoint=%s present=%v error=%v", endpoint, present, errPlan)
+	}
+	var groups []registerBotProvider
+	if errDecode := json.Unmarshal(next, &groups); errDecode != nil {
+		t.Fatal(errDecode)
+	}
+	if len(groups) != 1 || len(groups[0].Keys) != 1 || groups[0].Keys[0].Proxy != channel.ProxyURL {
+		t.Fatalf("matching key was not migrated: %+v", groups)
+	}
+	if !strings.Contains(string(next), `"priority":7`) {
+		t.Fatal("key metadata was not preserved during proxy migration")
+	}
+	_, _, present, errPlan = registerBotImportPlan(next, channel, importTestKey)
+	if errPlan != nil || !present {
+		t.Fatal("migrated key was not idempotent")
 	}
 }
 
@@ -178,7 +200,7 @@ func TestRegisterBotVerificationMatchesPanelAutomaticModelAndTokenField(t *testi
 		if errDecode := json.NewDecoder(r.Body).Decode(&payload); errDecode != nil {
 			t.Error(errDecode)
 		}
-		if payload["model"] != "fixture-opus" || payload["max_completion_tokens"] != float64(5) || payload["max_tokens"] != nil || payload["stream"] != false {
+		if payload["model"] != "fixture-opus" || payload["max_completion_tokens"] != float64(1) || payload["max_tokens"] != nil || payload["stream"] != false {
 			t.Errorf("unexpected bounded inference payload: %v", payload)
 		}
 		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"Hi"}}]}`))
@@ -189,6 +211,13 @@ func TestRegisterBotVerificationMatchesPanelAutomaticModelAndTokenField(t *testi
 	}
 	if _, errMissing := registerBotVerificationModel([]byte(`[{"name":"FreeAi","models":[]}]`), registerbot.DefaultFreeAIChannel()); errMissing == nil {
 		t.Fatal("missing verification model accepted")
+	}
+}
+
+func TestRegisterBotVerificationPrefersFastConfiguredModel(t *testing.T) {
+	model, errModel := registerBotVerificationModel([]byte(`[{"name":"FreeAi","models":[{"name":"claude-opus"},{"name":"openai/gpt-fast-sol"},{"name":"later-mini"}]}]`), registerbot.DefaultFreeAIChannel())
+	if errModel != nil || model.Name != "openai/gpt-fast-sol" {
+		t.Fatalf("fast model=%+v error=%v", model, errModel)
 	}
 }
 

@@ -99,18 +99,9 @@ func TestGatewayControllerCannotHideFailedForwardingPlane(t *testing.T) {
 }
 
 func TestGatewayControllerCandidatesPreferConfiguredPort(t *testing.T) {
-	candidates := candidateControllers("http://127.0.0.1:12450", "http://127.0.0.1:12440")
-	if len(candidates) == 0 || candidates[0] != "http://127.0.0.1:12440" {
+	candidates := candidateControllers("http://127.0.0.1:11460", "http://127.0.0.1:11461")
+	if len(candidates) != 1 || candidates[0] != "http://127.0.0.1:11461" {
 		t.Fatalf("candidates=%v", candidates)
-	}
-	count := 0
-	for _, candidate := range candidates {
-		if candidate == candidates[0] {
-			count++
-		}
-	}
-	if count != 1 {
-		t.Fatalf("duplicate configured controller: %v", candidates)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 )
 
 type fakeProxyPoolGateway struct {
@@ -157,6 +158,66 @@ func TestProxyPoolResumeKeepsReservedNode(t *testing.T) {
 	pin, errAcquire := pool.Acquire(context.Background(), channel, "row")
 	if errAcquire != nil || pin.Node != "node-a" {
 		t.Fatalf("resume changed route: pin=%+v error=%v", pin, errAcquire)
+	}
+}
+
+func TestProxyPoolAbandonRotatesAwayFromFailedRoute(t *testing.T) {
+	gateway := &fakeProxyPoolGateway{
+		nodes: []string{"node-a", "node-b"},
+		exits: map[string]string{"node-a": "203.0.113.41", "node-b": "203.0.113.42"},
+	}
+	pool := newTestProxyPool(t, gateway)
+	channel := ChannelSettings{ID: "test", Group: "group", Enabled: true}
+	first, errFirst := pool.Acquire(context.Background(), channel, "row")
+	if errFirst != nil || first.Node != "node-a" {
+		t.Fatalf("first=%+v error=%v", first, errFirst)
+	}
+	pool.ReleaseRoute(channel.Group, "row")
+	if errAbandon := pool.Abandon("row"); errAbandon != nil {
+		t.Fatal(errAbandon)
+	}
+	second, errSecond := pool.Acquire(context.Background(), channel, "row")
+	if errSecond != nil || second.Node != "node-b" {
+		t.Fatalf("second=%+v error=%v", second, errSecond)
+	}
+}
+
+func TestProxyPoolFailReservationCoolsBrokenRoute(t *testing.T) {
+	gateway := &fakeProxyPoolGateway{
+		nodes: []string{"node-a", "node-b"},
+		exits: map[string]string{"node-a": "203.0.113.61", "node-b": "203.0.113.62"},
+	}
+	pool := newTestProxyPool(t, gateway)
+	channel := ChannelSettings{ID: "test", Group: "group", Enabled: true}
+	first, errFirst := pool.Acquire(context.Background(), channel, "row")
+	if errFirst != nil || first.Node != "node-a" {
+		t.Fatalf("first=%+v error=%v", first, errFirst)
+	}
+	pool.ReleaseRoute(channel.Group, "row")
+	if errFail := pool.FailReservation("row", "navigation_error"); errFail != nil {
+		t.Fatal(errFail)
+	}
+	record := pool.doc.Nodes[proxyNodeKey("group", "node-a")]
+	if record.Failures != 1 || record.CooldownUntil <= time.Now().UnixMilli() || record.LastReason != "navigation_error" || pool.HasReservation("row") {
+		t.Fatalf("failed route was not cooled: record=%+v", record)
+	}
+	second, errSecond := pool.Acquire(context.Background(), channel, "row")
+	if errSecond != nil || second.Node != "node-b" {
+		t.Fatalf("second=%+v error=%v", second, errSecond)
+	}
+}
+
+func TestProxyPoolStartupHealthClearsOnlyTransientNodeFailures(t *testing.T) {
+	gateway := &fakeProxyPoolGateway{nodes: []string{"node-a"}, exits: map[string]string{"node-a": "203.0.113.50"}}
+	pool := newTestProxyPool(t, gateway)
+	key := proxyNodeKey("group", "node-a")
+	pool.doc.Nodes[key] = proxyPoolNode{Group: "group", Node: "node-a", Failures: 4, CooldownUntil: 9999999999999, LastReason: "exit_unverified"}
+	if errHealth := pool.ApplyHealth(map[string]string{"node-a": "203.0.113.50"}); errHealth != nil {
+		t.Fatal(errHealth)
+	}
+	record := pool.doc.Nodes[key]
+	if record.Failures != 0 || record.CooldownUntil != 0 || record.LastReason != "" || record.ExitIP != "203.0.113.50" || !record.Active {
+		t.Fatalf("health snapshot did not reset transient state: %+v", record)
 	}
 }
 

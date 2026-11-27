@@ -27,6 +27,120 @@ func TestFreeAISurveyWithoutWelcomeCredit(t *testing.T) {
 	runFreshSurveyBrowsers(t, 1, false)
 }
 
+// TestFreeAIGoogleAutomationBrowser drives every automatic registration stage
+// in a real isolated Chrome process. Fetch interception serves local fixtures
+// before any provider or identity request can leave the browser.
+func TestFreeAIGoogleAutomationBrowser(t *testing.T) {
+	if os.Getenv("REGISTERBOT_BROWSER_SMOKE") != "1" {
+		t.Skip("set REGISTERBOT_BROWSER_SMOKE=1 for the installed-browser regression")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	settings := DefaultSettings()
+	settings.Normalize()
+	settings.Browser.Headless = true
+	settings.Browser.PoolSize = 1
+	settings.Gateway.ProxyURL = ""
+	pool := NewPool(func() Settings { return settings }, t.TempDir())
+	t.Cleanup(func() { _ = pool.Shutdown() })
+	instance, errAcquire := pool.Acquire(ctx)
+	if errAcquire != nil {
+		t.Fatal(errAcquire)
+	}
+	defer pool.Release(instance)
+	session, errSession := instance.OpenPage(ctx, "about:blank")
+	if errSession != nil {
+		t.Fatal(errSession)
+	}
+	defer func() { _ = session.CloseTarget(context.Background()) }()
+
+	var emailOK, passwordOK, terms, consent, claims, dashboards, unexpected atomic.Int32
+	fixtureKey := "sk-" + strings.Repeat("G", 43)
+	stop := instance.control.subscribe("Fetch.requestPaused", session.sessionID, func(event cdpMessage) {
+		go func() {
+			request, _ := event.Params["request"].(map[string]any)
+			address, _ := request["url"].(string)
+			parsed, errURL := url.Parse(address)
+			body, contentType := "", "text/html"
+			if errURL != nil {
+				unexpected.Add(1)
+			} else {
+				switch parsed.Hostname() + parsed.Path {
+				case "freeaiapikey.com/register":
+					body = `<!doctype html><body><button style="display:none">Continue with Google</button><button>Continue with Google account later</button><button id="google" onclick="location.href='https://accounts.google.com/v3/signin/identifier'">Continue with Google</button>`
+				case "accounts.google.com/v3/signin/identifier":
+					body = `<!doctype html><body><input type="password" style="display:none"><button disabled>Next</button><form id="identifierForm"><label>Email or phone<input id="identifierId" name="identifier" type="email"></label><div id="identifierNext"><button type="submit">Next</button></div></form><script>identifierForm.onsubmit=async e=>{e.preventDefault();await fetch('/fixture-email?value='+encodeURIComponent(identifierId.value));location.href='/v3/signin/challenge/pwd'}</script>`
+				case "accounts.google.com/fixture-email":
+					if parsed.Query().Get("value") == "fixture@example.invalid" {
+						emailOK.Add(1)
+					}
+					body, contentType = `{"ok":true}`, "application/json"
+				case "accounts.google.com/v3/signin/challenge/pwd":
+					body = `<!doctype html><body><input name="Passwd" type="password" style="display:none"><form id="passwordForm"><label>Password<input id="passwordField" name="Passwd" type="password"></label><div id="passwordNext"><button type="submit">Next</button></div></form><script>passwordForm.onsubmit=async e=>{e.preventDefault();await fetch('/fixture-password?value='+encodeURIComponent(passwordField.value));location.href='/speedbump/workspacetermsofservice'}</script>`
+				case "accounts.google.com/fixture-password":
+					if parsed.Query().Get("value") == "fixture-secret" {
+						passwordOK.Add(1)
+					}
+					body, contentType = `{"ok":true}`, "application/json"
+				case "accounts.google.com/speedbump/workspacetermsofservice":
+					terms.Add(1)
+					body = `<!doctype html><body style="min-height:1200px"><button disabled>I understand</button><button style="margin-top:900px" onclick="location.href='/o/oauth2/v2/auth/consent'">I understand</button>`
+				case "accounts.google.com/o/oauth2/v2/auth/consent":
+					consent.Add(1)
+					body = `<!doctype html><body><h1>FreeAIapikey wants access</h1><button disabled>Continue</button><button>Continue later</button><button onclick="location.href='https://freeaiapikey.com/setup'">Continue</button>`
+				case "freeaiapikey.com/setup":
+					body = `<!doctype html><body><main id="app">Loading</main><script>setTimeout(()=>{document.getElementById('app').innerHTML='<div>Step 1 of 5</div><div id="wallet">Normal $0.00</div><form id="surveyForm"><label><input type="radio" name="role" value="student">Student</label><label><input type="radio" name="source" value="google">Google search</label><button id="surveySubmit" disabled>Get my $5</button></form><a href="/dashboard">Finish later and go to my dashboard</a>';document.getElementById('surveyForm').onchange=()=>{document.getElementById('surveySubmit').disabled=!(document.querySelector('input[name=role]').checked&&document.querySelector('input[name=source]').checked)};document.getElementById('surveyForm').onsubmit=async e=>{e.preventDefault();await fetch('/fixture-claim');document.getElementById('surveyForm').outerHTML='<div id="surveyDone">$5.00 is in your balance.</div>';document.getElementById('wallet').textContent='Normal $5.00'}},100)</script>`
+				case "freeaiapikey.com/fixture-claim":
+					claims.Add(1)
+					body, contentType = `{"ok":true}`, "application/json"
+				case "freeaiapikey.com/dashboard":
+					dashboards.Add(1)
+					body = `<!doctype html><body><div>NORMAL CREDITS $5.00</div><div><p>Default Key</p><button title="Copy key" onclick="copyKey('` + fixtureKey + `')">Copy key</button></div>`
+				case "freeaiapikey.com/favicon.ico", "accounts.google.com/favicon.ico":
+					body = ""
+				default:
+					unexpected.Add(1)
+				}
+			}
+			_, _ = session.call(ctx, "Fetch.fulfillRequest", map[string]any{"requestId": event.Params["requestId"], "responseCode": 200, "responseHeaders": []map[string]string{{"name": "Content-Type", "value": contentType}}, "body": base64.StdEncoding.EncodeToString([]byte(body))})
+		}()
+	})
+	defer stop()
+	if _, errEnable := session.call(ctx, "Fetch.enable", map[string]any{"patterns": []map[string]string{{"urlPattern": "*", "requestStage": "Request"}}}); errEnable != nil {
+		t.Fatal(errEnable)
+	}
+	if errNavigate := session.Navigate(ctx, "https://freeaiapikey.com/register"); errNavigate != nil {
+		t.Fatal(errNavigate)
+	}
+	task := newFreeAITestTask(t)
+	task.session = session
+	task.Channel.OnboardingRole, task.Channel.OnboardingSource = "student", "google"
+	started := time.Now()
+	harvest, errRun := NewFreeAIDriver(func() Settings { return settings }).Run(ctx, task)
+	elapsed := time.Since(started)
+	if errRun != nil || harvest.APIKey != fixtureKey || !harvest.CreditConfirmed {
+		t.Fatalf("full browser automation failed: key=%v credit=%v error=%v events=%+v", harvest.APIKey == fixtureKey, harvest.CreditConfirmed, errRun, task.bus.Tail(100, task.Channel.ID))
+	}
+	if emailOK.Load() != 1 || passwordOK.Load() != 1 || terms.Load() != 1 || consent.Load() != 1 || claims.Load() != 1 || dashboards.Load() != 1 || unexpected.Load() != 0 {
+		t.Fatalf("email=%d password=%d terms=%d consent=%d claims=%d dashboards=%d unexpected=%d", emailOK.Load(), passwordOK.Load(), terms.Load(), consent.Load(), claims.Load(), dashboards.Load(), unexpected.Load())
+	}
+	if elapsed >= automaticWaitLimit {
+		t.Fatalf("local full-flow automation exceeded ten seconds: %v", elapsed)
+	}
+	wantStages := []string{"google", "email", "password", "speedbump", "consent", "onboarding_profile", "onboarding_credit", "key"}
+	events := task.bus.Tail(100, task.Channel.ID)
+	position := 0
+	for _, event := range events {
+		if position < len(wantStages) && event.Stage == wantStages[position] {
+			position++
+		}
+	}
+	if position != len(wantStages) {
+		t.Fatalf("stage recognition incomplete: matched=%d/%d events=%v", position, len(wantStages), events)
+	}
+	t.Logf("PASS full isolated Chrome flow in %v: Google -> email -> password -> terms -> consent -> onboarding -> key", elapsed)
+}
+
 func runFreshSurveyBrowsers(t *testing.T, parallel int, credit bool) {
 	t.Helper()
 	if os.Getenv("REGISTERBOT_BROWSER_SMOKE") != "1" {

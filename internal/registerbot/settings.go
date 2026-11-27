@@ -41,6 +41,7 @@ const (
 	ShareModeLease      = "lease"
 	ShareModePerChannel = "per_channel"
 	ShareModeShared     = "shared"
+	automaticWaitLimit  = 10 * time.Second
 )
 
 // Settings is the persisted registerbot configuration. It lives in its own YAML
@@ -91,6 +92,10 @@ type GatewaySettings struct {
 	ShareMode string `yaml:"share-mode,omitempty" json:"share_mode,omitempty"`
 	// Groups restricts which proxy groups may be used. Empty means all.
 	Groups []string `yaml:"groups,omitempty" json:"groups,omitempty"`
+	// HealthyNodesFile is a runtime-generated allowlist for automatic channels.
+	HealthyNodesFile string `yaml:"healthy-nodes-file,omitempty" json:"healthy_nodes_file,omitempty"`
+	// VerifiedExits is loaded from the runtime health snapshot and never persisted.
+	VerifiedExits map[string]string `yaml:"-" json:"-"`
 	// PinTimeoutSeconds bounds a node switch plus its exit IP confirmation.
 	PinTimeoutSeconds int `yaml:"pin-timeout-seconds,omitempty" json:"pin_timeout_seconds,omitempty"`
 	// ProbeTimeoutSeconds bounds a single controller request.
@@ -107,6 +112,7 @@ type BrowserSettings struct {
 	ChromePaths           []string `yaml:"chrome-paths,omitempty" json:"chrome_paths,omitempty"`
 	AttachURL             string   `yaml:"attach-url,omitempty" json:"attach_url,omitempty"`
 	PoolSize              int      `yaml:"pool-size,omitempty" json:"pool_size,omitempty"`
+	WarmPoolSize          int      `yaml:"warm-pool-size,omitempty" json:"warm_pool_size,omitempty"`
 	Headless              bool     `yaml:"headless,omitempty" json:"headless,omitempty"`
 	WindowWidth           int      `yaml:"window-width,omitempty" json:"window_width,omitempty"`
 	WindowHeight          int      `yaml:"window-height,omitempty" json:"window_height,omitempty"`
@@ -172,7 +178,7 @@ type ChannelSettings struct {
 
 // PinTimeout bounds a node switch plus exit IP confirmation.
 func (g GatewaySettings) PinTimeout() time.Duration {
-	return secondsDuration(g.PinTimeoutSeconds, 20)
+	return boundedWait(g.PinTimeoutSeconds, 10)
 }
 
 // ProbeTimeout bounds a single controller request.
@@ -195,17 +201,25 @@ func (g GatewaySettings) CircuitCooldown() time.Duration {
 
 // StartupTimeout bounds one embedded browser launch plus CDP handshake.
 func (b BrowserSettings) StartupTimeout() time.Duration {
-	return secondsDuration(b.StartupTimeoutSeconds, 40)
+	return boundedWait(b.StartupTimeoutSeconds, 10)
 }
 
 // StepTimeout bounds one page interaction step.
 func (b BrowserSettings) StepTimeout() time.Duration {
-	return secondsDuration(b.StepTimeoutSeconds, 120)
+	return boundedWait(b.StepTimeoutSeconds, 10)
 }
 
 // HumanWait bounds how long the engine waits for manual intervention.
 func (b BrowserSettings) HumanWait() time.Duration {
-	return secondsDuration(b.HumanWaitSeconds, 300)
+	return boundedWait(b.HumanWaitSeconds, 10)
+}
+
+func boundedWait(value, fallback int) time.Duration {
+	duration := secondsDuration(value, fallback)
+	if duration > automaticWaitLimit {
+		return automaticWaitLimit
+	}
+	return duration
 }
 
 // Interval is the pause between two accounts of a channel.
@@ -238,7 +252,8 @@ func DefaultSettings() Settings {
 		StateDir: "registerbot",
 		Evidence: true,
 		Gateway: GatewaySettings{
-			ProxyURL:               "http://127.0.0.1:12450",
+			ProxyURL:               "http://127.0.0.1:11460",
+			ControllerURL:          "http://127.0.0.1:11461",
 			AutoDiscover:           true,
 			VerifyExitIP:           true,
 			ExitIPURL:              "https://api.ipify.org?format=json",
@@ -256,12 +271,13 @@ func DefaultSettings() Settings {
 		Browser: BrowserSettings{
 			Mode:                  BrowserModeEmbedded,
 			PoolSize:              2,
+			WarmPoolSize:          1,
 			WindowWidth:           1440,
 			WindowHeight:          900,
-			StartupTimeoutSeconds: 40,
-			StepTimeoutSeconds:    120,
-			HumanWaitSeconds:      300,
-			RetireAfter:           8,
+			StartupTimeoutSeconds: 10,
+			StepTimeoutSeconds:    10,
+			HumanWaitSeconds:      10,
+			RetireAfter:           32,
 			RemoteDebugPort:       9333,
 		},
 		Import: ImportSettings{
@@ -280,13 +296,13 @@ func DefaultFreeAIChannel() ChannelSettings {
 		Name:             "FreeAIapikey",
 		Enabled:          true,
 		Provider:         "FreeAi",
-		ProxyURL:         "http://127.0.0.1:12450",
+		ProxyURL:         "http://127.0.0.1:11460",
 		Concurrency:      2,
 		Group:            "节点选择",
 		RotateNode:       false,
 		IntervalSeconds:  2,
 		StepDelayMillis:  900,
-		MaxAttempts:      2,
+		MaxAttempts:      1,
 		OnboardingRole:   "student",
 		OnboardingSource: "google",
 	}
@@ -347,6 +363,12 @@ func (s *Settings) Normalize() {
 	}
 	if s.Browser.PoolSize > 8 {
 		s.Browser.PoolSize = 8
+	}
+	if s.Browser.WarmPoolSize <= 0 {
+		s.Browser.WarmPoolSize = def.Browser.WarmPoolSize
+	}
+	if s.Browser.WarmPoolSize > s.Browser.PoolSize {
+		s.Browser.WarmPoolSize = s.Browser.PoolSize
 	}
 	if s.Browser.WindowWidth <= 0 {
 		s.Browser.WindowWidth = def.Browser.WindowWidth
@@ -525,6 +547,10 @@ func (st *store) Snapshot() Settings {
 func cloneSettings(in Settings) Settings {
 	out := in
 	out.Gateway.Groups = append([]string(nil), in.Gateway.Groups...)
+	out.Gateway.VerifiedExits = make(map[string]string, len(in.Gateway.VerifiedExits))
+	for node, exitIP := range in.Gateway.VerifiedExits {
+		out.Gateway.VerifiedExits[node] = exitIP
+	}
 	out.Browser.ChromePaths = append([]string(nil), in.Browser.ChromePaths...)
 	out.Browser.ExtraArgs = append([]string(nil), in.Browser.ExtraArgs...)
 	out.Channels = make([]ChannelSettings, len(in.Channels))

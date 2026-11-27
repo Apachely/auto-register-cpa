@@ -191,6 +191,40 @@ func (p *ProxyPool) Configure(settings ProxyPoolSettings) {
 	p.mu.Unlock()
 }
 
+// ApplyHealth replaces transient failures with the startup health snapshot for
+// the dedicated proxy instance. Durable quota and completion records remain.
+func (p *ProxyPool) ApplyHealth(verified map[string]string) error {
+	if len(verified) == 0 {
+		return nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	changed := false
+	for key, record := range p.doc.Nodes {
+		exitIP, exists := verified[record.Node]
+		if !exists {
+			continue
+		}
+		normalized, valid := normalizeExitIP(exitIP)
+		if !valid {
+			continue
+		}
+		if record.ExitIP != normalized || record.Failures != 0 || record.CooldownUntil != 0 || record.LastReason != "" || !record.Active {
+			record.ExitIP = normalized
+			record.Failures = 0
+			record.CooldownUntil = 0
+			record.LastReason = ""
+			record.Active = true
+			p.doc.Nodes[key] = record
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	return p.persistLocked()
+}
+
 func (p *ProxyPool) Enabled() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -608,6 +642,40 @@ func (p *ProxyPool) Abandon(holder string) error {
 	previousUpdatedAt := p.doc.UpdatedAt
 	delete(p.doc.Reservations, holder)
 	if errSave := p.persistLocked(); errSave != nil {
+		p.doc.Reservations[holder] = reservation
+		p.doc.UpdatedAt = previousUpdatedAt
+		return errSave
+	}
+	return nil
+}
+
+// FailReservation removes a failed account reservation and immediately cools
+// down its route so the next account cannot select the same broken node.
+func (p *ProxyPool) FailReservation(holder, reason string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	reservation, exists := p.doc.Reservations[holder]
+	if !exists {
+		return nil
+	}
+	key := proxyNodeKey(reservation.Group, reservation.Node)
+	record, recordExisted := p.doc.Nodes[key]
+	previousRecord, previousUpdatedAt := record, p.doc.UpdatedAt
+	record.Group, record.Node, record.Active = reservation.Group, reservation.Node, true
+	record.Failures++
+	record.LastReason = strings.TrimSpace(reason)
+	if record.LastReason == "" {
+		record.LastReason = "account_failed"
+	}
+	record.CooldownUntil = time.Now().Add(time.Duration(p.settings.FailureCooldownSeconds) * time.Second).UnixMilli()
+	p.doc.Nodes[key] = record
+	delete(p.doc.Reservations, holder)
+	if errSave := p.persistLocked(); errSave != nil {
+		if recordExisted {
+			p.doc.Nodes[key] = previousRecord
+		} else {
+			delete(p.doc.Nodes, key)
+		}
 		p.doc.Reservations[holder] = reservation
 		p.doc.UpdatedAt = previousUpdatedAt
 		return errSave

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -248,11 +249,32 @@ func (t *Task) CaptureEvidence(ctx context.Context, session *Session, reason str
 		return ""
 	}
 	name := fmt.Sprintf("%s-%s-%d-%s.json", sanitizeName(t.Channel.ID), sanitizeName(t.RowID), time.Now().Unix(), sanitizeName(reason))
-	// Never persist raw authentication pages, which can contain passwords or tokens.
-	payload, errMarshal := json.Marshal(map[string]string{"stage": sanitizeName(reason), "browser": t.browserLabel()})
+	// Never persist raw authentication pages, screenshots, field values, query
+	// strings, cookies, or tokens. cpaState contains only visible labels and field
+	// metadata; the URL is reduced to origin plus path below.
+	document := map[string]any{"stage": sanitizeName(reason), "browser": t.browserLabel()}
+	if session != nil {
+		if state, errState := session.State(ctx); errState == nil && state != nil {
+			if rawURL, ok := state["url"].(string); ok {
+				if parsed, errParse := url.Parse(rawURL); errParse == nil {
+					state["url"] = parsed.Scheme + "://" + parsed.Host + parsed.Path
+				}
+			}
+			document["page"] = state
+		}
+		if targets, errTargets := session.TargetTopology(ctx); errTargets == nil {
+			document["targets"] = targets
+		}
+	}
+	payload, errMarshal := json.Marshal(document)
 	if errMarshal != nil {
 		return ""
 	}
+	payload = []byte(strings.ReplaceAll(string(payload), t.Account.Email, t.Account.Masked()))
+	if t.Account.Password != "" {
+		payload = []byte(strings.ReplaceAll(string(payload), t.Account.Password, "[redacted]"))
+	}
+	payload = keyPattern.ReplaceAll(payload, []byte("[redacted-key]"))
 	path, errWrite := t.evidence.Write(name, payload)
 	if errWrite != nil {
 		return ""

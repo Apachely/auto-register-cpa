@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -465,7 +466,11 @@ func (s *Session) FollowAuthorizationPopup(ctx context.Context) error {
 			continue
 		}
 		address, _ := info["url"].(string)
-		if !googleIdentityHost(address) && !freeAIHost(address) {
+		// Chrome creates an OAuth popup as about:blank before assigning the
+		// Google URL. Attach to that direct child immediately so the first
+		// navigation cannot race past target discovery.
+		isBlankChild := isChild && strings.HasPrefix(strings.TrimSpace(address), "about:blank")
+		if !isBlankChild && !googleIdentityHost(address) && !freeAIHost(address) {
 			continue
 		}
 		targetID, _ := info["targetId"].(string)
@@ -486,6 +491,48 @@ func (s *Session) FollowAuthorizationPopup(ctx context.Context) error {
 		return s.InstallHelpers(ctx)
 	}
 	return nil
+}
+
+// TargetTopology returns only sanitized page relationships from this account's
+// disposable browser context. Target/session IDs and URL parameters never leave
+// the CDP layer.
+func (s *Session) TargetTopology(ctx context.Context) ([]map[string]any, error) {
+	result, errTargets := s.client.Call(ctx, "Target.getTargets", nil)
+	if errTargets != nil {
+		return nil, errTargets
+	}
+	infos, _ := result["targetInfos"].([]any)
+	out := make([]map[string]any, 0, len(infos))
+	for _, raw := range infos {
+		info, ok := raw.(map[string]any)
+		if !ok || info["browserContextId"] != s.contextID {
+			continue
+		}
+		targetID, _ := info["targetId"].(string)
+		openerID, _ := info["openerId"].(string)
+		targetType, _ := info["type"].(string)
+		address, _ := info["url"].(string)
+		out = append(out, map[string]any{
+			"type":    targetType,
+			"url":     sanitizedTargetURL(address),
+			"current": targetID != "" && targetID == s.targetID,
+			"child":   openerID != "" && openerID == s.targetID,
+			"opener":  targetID != "" && targetID == s.openerID,
+		})
+	}
+	return out, nil
+}
+
+func sanitizedTargetURL(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if strings.HasPrefix(trimmed, "about:") {
+		return strings.SplitN(trimmed, "?", 2)[0]
+	}
+	parsed, errParse := url.Parse(trimmed)
+	if errParse != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	return parsed.Scheme + "://" + parsed.Host + parsed.Path
 }
 
 // Navigate loads a URL and waits for the load event.
@@ -517,21 +564,27 @@ func navigationFailure(raw string) *NavigationError {
 	}
 }
 
-// WaitForLoad waits for Page.loadEventFired, or for readyState when it already passed.
+// WaitForLoad returns when the DOM is interactive. Registration controls do not
+// depend on late subresources finishing through the proxy.
 func (s *Session) WaitForLoad(ctx context.Context) error {
-	if ready, errReady := s.readyState(ctx); errReady == nil && ready == "complete" {
+	if ready, errReady := s.readyState(ctx); errReady == nil && documentReady(ready) {
 		return nil
 	}
 	done := make(chan struct{}, 1)
-	stop := s.client.subscribe("Page.loadEventFired", s.sessionID, func(cdpMessage) {
+	notify := func(cdpMessage) {
 		select {
 		case done <- struct{}{}:
 		default:
 		}
-	})
-	defer stop()
+	}
+	stopDOM := s.client.subscribe("Page.domContentEventFired", s.sessionID, notify)
+	stopLoad := s.client.subscribe("Page.loadEventFired", s.sessionID, notify)
+	defer stopDOM()
+	defer stopLoad()
+	ticker := time.NewTicker(150 * time.Millisecond)
+	defer ticker.Stop()
 	for {
-		if ready, errReady := s.readyState(ctx); errReady == nil && ready == "complete" {
+		if ready, errReady := s.readyState(ctx); errReady == nil && documentReady(ready) {
 			return nil
 		}
 		select {
@@ -539,10 +592,12 @@ func (s *Session) WaitForLoad(ctx context.Context) error {
 			return nil
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(300 * time.Millisecond):
+		case <-ticker.C:
 		}
 	}
 }
+
+func documentReady(state string) bool { return state == "interactive" || state == "complete" }
 
 func (s *Session) readyState(ctx context.Context) (string, error) {
 	value, errEval := s.Evaluate(ctx, "document.readyState", false)
@@ -1006,8 +1061,8 @@ func (s *Session) TypeInto(ctx context.Context, selector, label, value string) e
 	if cleared != true {
 		return errInputValue
 	}
-	if _, errInsert := s.call(ctx, "Input.insertText", map[string]any{"text": value}); errInsert != nil {
-		return fmt.Errorf("registerbot: insert text: %w", errInsert)
+	if errType := s.typeText(ctx, value); errType != nil {
+		return errType
 	}
 	retained, errRetained := s.Evaluate(ctx, fmt.Sprintf(`(async function(){
 		await new Promise(function(resolve){setTimeout(resolve,150);});
@@ -1018,6 +1073,31 @@ func (s *Session) TypeInto(ctx context.Context, selector, label, value string) e
 	}
 	if retained != true {
 		return errInputValue
+	}
+	return nil
+}
+
+// typeText dispatches the same key event sequence as physical typing. Directly
+// assigning a DOM value or using Input.insertText can update the visible field
+// without updating Google sign-in's internal form state.
+func (s *Session) typeText(ctx context.Context, value string) error {
+	for _, char := range value {
+		text := string(char)
+		if _, errDown := s.call(ctx, "Input.dispatchKeyEvent", map[string]any{
+			"type": "rawKeyDown", "key": text,
+		}); errDown != nil {
+			return fmt.Errorf("registerbot: typing key down: %w", errDown)
+		}
+		if _, errChar := s.call(ctx, "Input.dispatchKeyEvent", map[string]any{
+			"type": "char", "key": text, "text": text, "unmodifiedText": text,
+		}); errChar != nil {
+			return fmt.Errorf("registerbot: typing character: %w", errChar)
+		}
+		if _, errUp := s.call(ctx, "Input.dispatchKeyEvent", map[string]any{
+			"type": "keyUp", "key": text,
+		}); errUp != nil {
+			return fmt.Errorf("registerbot: typing key up: %w", errUp)
+		}
 	}
 	return nil
 }

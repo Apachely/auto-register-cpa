@@ -7,6 +7,15 @@ func TestProxyPoolSettingsDefaultAndSafetyBounds(t *testing.T) {
 	if !settings.ProxyPool.Enabled() || settings.ProxyPool.MaxUsableAccountsPerIP != 3 {
 		t.Fatalf("unexpected compatibility defaults: %+v", settings.ProxyPool)
 	}
+	if settings.Gateway.ProxyURL != "http://127.0.0.1:11460" || settings.Gateway.ControllerURL != "http://127.0.0.1:11461" || settings.Channels[0].ProxyURL != "http://127.0.0.1:11460" {
+		t.Fatalf("registration traffic is not isolated from the system proxy: gateway=%+v channel=%+v", settings.Gateway, settings.Channels[0])
+	}
+	if settings.Browser.WarmPoolSize != 1 || settings.Browser.StartupTimeoutSeconds != 10 || settings.Browser.StepTimeoutSeconds != 10 || settings.Browser.RetireAfter != 32 {
+		t.Fatalf("unexpected fast isolated-browser defaults: %+v", settings.Browser)
+	}
+	if settings.Channels[0].MaxAttempts != 1 {
+		t.Fatalf("unattended channel retries failed accounts: %+v", settings.Channels[0])
+	}
 	settings.ProxyPool.Mode = ProxyPoolModeEnforce
 	if errValidate := validateSettings(&settings); errValidate != nil {
 		t.Fatal(errValidate)
@@ -19,6 +28,27 @@ func TestProxyPoolSettingsDefaultAndSafetyBounds(t *testing.T) {
 	settings.Gateway.VerifyExitIP = false
 	if errValidate := validateSettings(&settings); errValidate == nil {
 		t.Fatal("enforced proxy pool accepted unverified exits")
+	}
+}
+
+func TestAutomaticWaitsAreHardCappedAtTenSeconds(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Gateway.PinTimeoutSeconds = 600
+	settings.Browser.StartupTimeoutSeconds = 600
+	settings.Browser.StepTimeoutSeconds = 600
+	settings.Browser.HumanWaitSeconds = 600
+	if settings.Gateway.PinTimeout() != automaticWaitLimit || settings.Browser.StartupTimeout() != automaticWaitLimit || settings.Browser.StepTimeout() != automaticWaitLimit || settings.Browser.HumanWait() != automaticWaitLimit {
+		t.Fatal("automatic wait exceeded ten seconds")
+	}
+}
+
+func TestBrowserWarmPoolIsBoundedByPoolSize(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Browser.PoolSize = 1
+	settings.Browser.WarmPoolSize = 8
+	settings.Normalize()
+	if settings.Browser.WarmPoolSize != 1 {
+		t.Fatalf("warm pool exceeded the browser ceiling: %+v", settings.Browser)
 	}
 }
 

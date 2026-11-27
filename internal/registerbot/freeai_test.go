@@ -72,6 +72,31 @@ func TestNavigateReportsCDPNetworkFailureImmediately(t *testing.T) {
 	}
 }
 
+func TestTypeTextDispatchesPhysicalKeyEvents(t *testing.T) {
+	var events []map[string]any
+	client := newFreeAITestCDP(t, func(request cdpMessage) map[string]any {
+		if request.Method == "Input.dispatchKeyEvent" {
+			events = append(events, request.Params)
+		}
+		return map[string]any{}
+	})
+	session := &Session{client: client, sessionID: "test"}
+	if errType := session.typeText(context.Background(), "A9@"); errType != nil {
+		t.Fatal(errType)
+	}
+	if len(events) != 9 {
+		t.Fatalf("physical typing events=%d", len(events))
+	}
+	for index, eventType := range []string{"rawKeyDown", "char", "keyUp", "rawKeyDown", "char", "keyUp", "rawKeyDown", "char", "keyUp"} {
+		if events[index]["type"] != eventType {
+			t.Fatalf("event %d=%v", index, events[index])
+		}
+	}
+	if events[1]["text"] != "A" || events[4]["text"] != "9" || events[7]["text"] != "@" {
+		t.Fatalf("typed characters changed: %v", events)
+	}
+}
+
 func newFreeAITestTask(t *testing.T) *Task {
 	t.Helper()
 	bus, errBus := NewBus(t.TempDir(), 100)
@@ -130,6 +155,25 @@ func TestFreeAIChromeInterstitialRetriesInsteadOfWaiting(t *testing.T) {
 	}
 }
 
+func TestFreeAIChallengeFailsWithoutManualHandoff(t *testing.T) {
+	client := newFreeAITestCDP(t, func(request cdpMessage) map[string]any {
+		if request.Method == "Runtime.evaluate" {
+			return map[string]any{"result": map[string]any{"value": freeAIPage{URL: "https://accounts.google.com/v3/signin/challenge/totp", Action: "challenge", HumanChallenge: true}}}
+		}
+		return map[string]any{}
+	})
+	task := newFreeAITestTask(t)
+	task.session = &Session{client: client, sessionID: "session", targetID: "target", contextID: "context"}
+	started := time.Now()
+	_, errRun := NewFreeAIDriver(nil).Run(context.Background(), task)
+	if errRun == nil || errors.Is(errRun, ErrManualHandoff) || task.session != nil {
+		t.Fatalf("challenge did not fail and close automatically: %v", errRun)
+	}
+	if time.Since(started) >= time.Second {
+		t.Fatal("challenge failure was not immediate")
+	}
+}
+
 func TestFreeAIPasswordTransitionDoesNotTriggerHumanVerification(t *testing.T) {
 	for _, test := range []struct {
 		name, url string
@@ -156,7 +200,7 @@ func TestNavigationFailureNeverExposesArbitraryBrowserText(t *testing.T) {
 	}
 }
 
-func TestFreeAIOnboardingRequiresConfirmedCredit(t *testing.T) {
+func TestFreeAIIncompleteOnboardingFailsWithoutManualHandoff(t *testing.T) {
 	for _, stage := range []string{"onboarding_plans", "onboarding_discord"} {
 		t.Run(stage, func(t *testing.T) {
 			client := newFreeAITestCDP(t, func(request cdpMessage) map[string]any {
@@ -171,8 +215,8 @@ func TestFreeAIOnboardingRequiresConfirmedCredit(t *testing.T) {
 			task := newFreeAITestTask(t)
 			task.session = &Session{client: client, sessionID: "session", targetID: "target", contextID: "context"}
 			_, errRun := NewFreeAIDriver(nil).Run(context.Background(), task)
-			if !errors.Is(errRun, ErrManualHandoff) || task.session == nil {
-				t.Fatal("incomplete onboarding did not retain manual handoff")
+			if errRun == nil || errors.Is(errRun, ErrManualHandoff) || task.session != nil {
+				t.Fatal("incomplete onboarding did not fail and close automatically")
 			}
 		})
 	}

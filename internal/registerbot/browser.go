@@ -197,7 +197,11 @@ func (p *Pool) profileDir(id int) string {
 			base = abs
 		}
 	}
-	return filepath.Join(base, fmt.Sprintf("instance-%d", id))
+	slot := id
+	if size := p.poolSize(); size > 0 {
+		slot = id % size
+	}
+	return filepath.Join(base, fmt.Sprintf("instance-%d", slot))
 }
 
 // freePort reserves a loopback port for one DevTools listener.
@@ -292,8 +296,12 @@ func (p *Pool) poolSize() int {
 
 // Acquire hands out a live instance, launching one when the pool is short.
 func (p *Pool) Acquire(ctx context.Context) (*browserInstance, error) {
+	return p.acquire(ctx, true)
+}
+
+func (p *Pool) acquire(ctx context.Context, countUse bool) (*browserInstance, error) {
 	for {
-		instance, errAcquire := p.tryAcquire(ctx)
+		instance, errAcquire := p.tryAcquire(ctx, countUse)
 		if !errors.Is(errAcquire, errPoolBusy) {
 			return instance, errAcquire
 		}
@@ -305,9 +313,35 @@ func (p *Pool) Acquire(ctx context.Context) (*browserInstance, error) {
 	}
 }
 
+// Warm starts isolated local browser processes before an account reaches the
+// queue. Held slots force the pool to fill without sharing profile data with the
+// operator's personal browser.
+func (p *Pool) Warm(ctx context.Context, count int) error {
+	if count <= 0 {
+		return nil
+	}
+	if maximum := p.poolSize(); count > maximum {
+		count = maximum
+	}
+	held := make([]*browserInstance, 0, count)
+	defer func() {
+		for _, instance := range held {
+			p.Release(instance)
+		}
+	}()
+	for len(held) < count {
+		instance, errAcquire := p.acquire(ctx, false)
+		if errAcquire != nil {
+			return errAcquire
+		}
+		held = append(held, instance)
+	}
+	return nil
+}
+
 var errPoolBusy = errors.New("registerbot: browser pool busy")
 
-func (p *Pool) tryAcquire(ctx context.Context) (*browserInstance, error) {
+func (p *Pool) tryAcquire(ctx context.Context, countUse bool) (*browserInstance, error) {
 	p.acquireMu.Lock()
 	defer p.acquireMu.Unlock()
 	if !p.recovered {
@@ -339,7 +373,9 @@ func (p *Pool) tryAcquire(ctx context.Context) (*browserInstance, error) {
 			continue
 		}
 		if instance.Alive(ctx) {
-			instance.markUsed()
+			if countUse {
+				instance.markUsed()
+			}
 			p.mu.Lock()
 			p.busy[instance.id] = true
 			instance.mu.Lock()
@@ -376,7 +412,9 @@ func (p *Pool) tryAcquire(ctx context.Context) (*browserInstance, error) {
 				log.WithFields(log.Fields{"from": mode, "to": rung, "cause": errString(lastErr)}).
 					Warn("registerbot: browser ladder degradation")
 			}
-			instance.markUsed()
+			if countUse {
+				instance.markUsed()
+			}
 			p.mu.Lock()
 			p.busy[instance.id] = true
 			instance.mu.Lock()
@@ -792,6 +830,7 @@ func (p *Pool) recoverManaged(ctx context.Context) {
 		}
 		var meta managedBrowser
 		if json.Unmarshal(data, &meta) != nil || meta.Port < 1 || meta.Port > 65535 || meta.Endpoint == "" {
+			p.removeManagedRecord(path)
 			continue
 		}
 		if meta.ID >= p.nextID {
@@ -805,11 +844,13 @@ func (p *Pool) recoverManaged(ctx context.Context) {
 		errVersion := transport.getJSON(probeCtx, "/json/version", &version)
 		if errVersion != nil || version.Endpoint != meta.Endpoint {
 			cancel()
+			p.removeManagedRecord(path)
 			continue
 		}
 		control, errConnect := transport.connectBrowser(probeCtx)
 		cancel()
 		if errConnect != nil {
+			p.removeManagedRecord(path)
 			continue
 		}
 		instance := &browserInstance{id: meta.ID, port: meta.Port, mode: meta.Mode, browser: meta.Browser, profileDir: meta.ProfileDir, control: control, transport: transport, owned: true, metaFile: path, proxyURL: p.proxyURL}
@@ -818,4 +859,10 @@ func (p *Pool) recoverManaged(ctx context.Context) {
 		p.order = append(p.order, meta.ID)
 		p.mu.Unlock()
 	}
+}
+
+func (p *Pool) removeManagedRecord(path string) {
+	_ = os.Remove(path)
+	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)) + ".pid"
+	_ = os.Remove(filepath.Join(p.stateDir, name))
 }

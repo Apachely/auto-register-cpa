@@ -76,6 +76,13 @@ assert.equal(vm.runInContext("cpaFindInput('input[type=password]', 'password')",
 const terms = makeContext([], 'I understand', 'https://accounts.google.com/speedbump/gaplustos');
 assert.equal(vm.runInContext(inspect, terms).action, 'consent');
 
+const choose = makeContext([], 'Choose an account\nSign in to FreeAIapikey', 'https://accounts.google.com/o/oauth2/auth');
+assert.equal(vm.runInContext(inspect, choose).action, 'choose_account');
+const consent = makeContext([], 'FreeAIapikey wants access\nContinue', 'https://accounts.google.com/o/oauth2/v2/auth/consent');
+assert.equal(vm.runInContext(inspect, consent).action, 'consent');
+const blocked = makeContext([], 'This browser or app may not be secure', 'https://accounts.google.com/v3/signin/rejected');
+assert.equal(vm.runInContext(inspect, blocked).action, 'blocked');
+
 const network = makeContext([], 'This site cannot be reached\nERR_CONNECTION_RESET', 'chrome-error://chromewebdata/');
 const failure = vm.runInContext(inspect, network);
 assert.equal(failure.action, 'network_error');
@@ -104,6 +111,10 @@ assert.equal(vm.runInContext(inspect,pendingSetup).key,fullKey);
 const unpaid=makeContext([], 'Step 1 of 5\nYour balance +$5.00\nNormal $0.00 · Bonus $0.00','https://freeaiapikey.com/setup');
 assert.equal(vm.runInContext(inspect,unpaid).action,'onboarding_profile');
 assert.equal(vm.runInContext(inspect,unpaid).credit_confirmed,false);
+const resumed=makeContext([], 'Step 2 of 5\nNormal $0.00 · Bonus $0.00','https://freeaiapikey.com/setup');
+const resumedState=vm.runInContext(inspect,resumed);
+assert.equal(resumedState.action,'onboarding_tool');
+assert.equal(resumedState.survey_completed,true);
 const paid=makeContext([], 'Step 1 of 5\nNormal $5.00 · Bonus $0.00\n$5.00 is in your balance.','https://freeaiapikey.com/setup');
 assert.equal(vm.runInContext(inspect,paid).action,'onboarding_credit');
 assert.equal(vm.runInContext(inspect,paid).credit_confirmed,true);
