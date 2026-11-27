@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -442,6 +443,94 @@ func (g *Gateway) Groups() []Group {
 	}
 	sortGroups(out)
 	return out
+}
+
+// NodeProbeResult is one read-only controller sweep over the nodes of a group.
+//
+// The delay endpoint measures the named node without touching selector state, so
+// a sweep is safe while accounts hold a route lease. Only counters leave this
+// package; node names are operator data and stay out of the queue journal.
+type NodeProbeResult struct {
+	Group       string
+	Total       int
+	Reachable   map[string]int
+	Unreachable []string
+	CheckedAt   int64
+}
+
+// nodeProbeTarget is the reachability endpoint the controller probes through each
+// node. Registration depends on Google sign-in, so this mirrors the snapshot
+// generator instead of any generic connectivity checker.
+const nodeProbeTarget = "https://accounts.google.com/generate_204"
+
+// ProbeNodes measures every candidate node in parallel and reports which ones can
+// currently reach the registration identity provider.
+func (g *Gateway) ProbeNodes(ctx context.Context, group string, nodes []string) NodeProbeResult {
+	result := NodeProbeResult{
+		Group:     group,
+		Total:     len(nodes),
+		Reachable: make(map[string]int, len(nodes)),
+		CheckedAt: time.Now().UnixMilli(),
+	}
+	if strings.TrimSpace(group) == "" || len(nodes) == 0 || ctx.Err() != nil {
+		return result
+	}
+	set := g.snapshotSettings()
+	timeout := set.Gateway.NodeProbeTimeout()
+	limit := set.Gateway.NodeProbeLimit()
+	waves := (len(nodes) + limit - 1) / limit
+	sweepCtx, cancel := context.WithTimeout(ctx, time.Duration(waves)*timeout+5*time.Second)
+	defer cancel()
+	baseURL, errDiscover := g.discoverController(sweepCtx, false)
+	if errDiscover != nil {
+		return result
+	}
+	var mu sync.Mutex
+	semaphore := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	for _, candidate := range nodes {
+		node := strings.TrimSpace(candidate)
+		if node == "" {
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case semaphore <- struct{}{}:
+			case <-sweepCtx.Done():
+				return
+			}
+			defer func() { <-semaphore }()
+			delay, errDelay := g.nodeDelay(sweepCtx, baseURL, node, timeout)
+			mu.Lock()
+			defer mu.Unlock()
+			if errDelay == nil && delay > 0 {
+				result.Reachable[node] = delay
+				return
+			}
+			result.Unreachable = append(result.Unreachable, node)
+		}()
+	}
+	wg.Wait()
+	return result
+}
+
+// nodeDelay issues one controller delay request for a single node.
+func (g *Gateway) nodeDelay(ctx context.Context, baseURL, node string, timeout time.Duration) (int, error) {
+	query := url.Values{}
+	query.Set("url", nodeProbeTarget)
+	query.Set("timeout", strconv.FormatInt(timeout.Milliseconds(), 10))
+	var payload struct {
+		Delay int `json:"delay"`
+	}
+	path := "/proxies/" + url.PathEscape(node) + "/delay?" + query.Encode()
+	reqCtx, cancel := context.WithTimeout(ctx, timeout+2*time.Second)
+	defer cancel()
+	if errGet := g.controllerGet(reqCtx, baseURL, path, &payload); errGet != nil {
+		return 0, errGet
+	}
+	return payload.Delay, nil
 }
 
 // pinNode switches one group to a node on the control plane.

@@ -25,6 +25,9 @@ different exit.
 ## Requirements
 
 - Discover candidates from the existing gateway controller and channel group.
+- Measure node reachability against the live controller while no account is in
+  flight. A generated health snapshot may only seed measured exit addresses, must
+  expire, and must never narrow the selectable pool or block startup.
 - Keep all browser and API traffic on the existing gateway forwarding URL.
 - Allocate a different node and a different measured exit IP for each new
   account; reject an allocation when no distinct verified exit is available.
@@ -45,7 +48,8 @@ different exit.
 ## Runtime flow
 
 1. Refresh the gateway snapshot and resolve the channel's selectable nodes.
-2. Choose candidates in round-robin order, excluding cooling nodes.
+2. Choose candidates in round-robin order over a measured-first ordering: nodes
+   with a current exit observation, then unmeasured nodes, then cooling nodes last.
 3. Pin a candidate through the gateway and verify the controller selection.
 4. Read the exit IP through the gateway forwarding plane.
 5. Reject aliases of the previous exit and IPs whose usable count plus active
@@ -63,13 +67,17 @@ All endpoints use the existing `/v8/management/registerbot` authentication.
 
 - `GET /proxy-pool`: policy, counters, node state, and IP ledger.
 - `PUT /proxy-pool`: mode, maximum usable accounts per IP, and failure cooldown.
-- `POST /proxy-pool/refresh`: refresh selectable nodes from the gateway.
+- `POST /proxy-pool/refresh`: refresh selectable nodes from the gateway and sweep
+  node reachability into the ledger.
 
 ## Verification coverage
 
 Unit tests cover exit rotation, alias-node rejection, quota exhaustion, durable
 and idempotent completion, non-usable account accounting, reservation recovery,
 ledger-write rollback, controller degradation, settings bounds, queue metadata,
-and management request validation. Browser/provider behavior remains covered by
+management request validation, read-only node sweeps that never write selector
+state, reachability promotion and cooldown with an injected clock, measured-first
+candidate ordering, and the degraded paths of an absent, malformed, expired or
+empty health snapshot. Browser/provider behavior remains covered by
 the existing local CDP fixtures; no external registration is required for these
 tests.

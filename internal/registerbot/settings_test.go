@@ -1,6 +1,14 @@
 package registerbot
 
-import "testing"
+import (
+	"bytes"
+	"context"
+	"os"
+	"path/filepath"
+	"strconv"
+	"testing"
+	"time"
+)
 
 func TestProxyPoolSettingsDefaultAndSafetyBounds(t *testing.T) {
 	settings := DefaultSettings()
@@ -85,5 +93,69 @@ func TestFreeAIOnboardingDefaultsPersistThroughChannelUpdate(t *testing.T) {
 	channel := e.Settings().Channels[0]
 	if channel.OnboardingRole != "student" || channel.OnboardingSource != "google" {
 		t.Fatal("saved empty survey settings were not normalized")
+	}
+}
+
+func TestGatewayNodeHealthSettingsDefaultAndBounds(t *testing.T) {
+	settings := DefaultSettings()
+	if settings.Gateway.HealthyNodesTTL() != 30*time.Minute || settings.Gateway.NodeProbeInterval() != 90*time.Second {
+		t.Fatalf("unexpected health defaults: %+v", settings.Gateway)
+	}
+	if settings.Gateway.NodeProbeTimeout() != 8*time.Second || settings.Gateway.NodeProbeLimit() != 12 {
+		t.Fatalf("a probe budget this tight would mark healthy nodes dead: %+v", settings.Gateway)
+	}
+	settings.Gateway.HealthyNodesTTLMinutes, settings.Gateway.NodeProbeIntervalSeconds = 0, 0
+	settings.Gateway.NodeProbeTimeoutSeconds, settings.Gateway.NodeProbeConcurrency = -3, 500
+	settings.Normalize()
+	if settings.Gateway.HealthyNodesTTL() != 30*time.Minute || settings.Gateway.NodeProbeInterval() != 90*time.Second {
+		t.Fatalf("zero values did not fall back to defaults: %+v", settings.Gateway)
+	}
+	if settings.Gateway.NodeProbeTimeout() != 8*time.Second || settings.Gateway.NodeProbeLimit() != maxNodeProbeConcurrency {
+		t.Fatalf("invalid probe values escaped normalization: %+v", settings.Gateway)
+	}
+	settings.Gateway.NodeProbeIntervalSeconds = -1
+	if settings.Gateway.NodeProbeInterval() != 0 {
+		t.Fatal("a negative interval must disable the background sweep")
+	}
+}
+
+// A health snapshot must never shrink a configured node pool, and saving settings
+// must not persist a startup snapshot back into the file.
+func TestConfiguredNodesSurviveSaveDespiteHealthSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	snapshot := filepath.Join(dir, "healthy.json")
+	body := `{"version":1,"checked_at":` + strconv.FormatInt(time.Now().UnixMilli(), 10) +
+		`,"nodes":[{"name":"known","delay_ms":100,"exit_ip":"203.0.113.5"}]}`
+	if errWrite := os.WriteFile(snapshot, []byte(body), 0o600); errWrite != nil {
+		t.Fatal(errWrite)
+	}
+	settings := testSettings()
+	settings.Gateway.HealthyNodesFile = snapshot
+	settings.Channels[0].ManualMode = false
+	settings.Channels[0].Nodes = []string{"known", "unknown-node"}
+	engine, errNew := NewEngine(dir, settings, func(context.Context, ChannelSettings, Harvest) error { return nil })
+	if errNew != nil {
+		t.Fatal(errNew)
+	}
+	defer func() {
+		if errClose := engine.Close(); errClose != nil {
+			t.Error(errClose)
+		}
+	}()
+	if nodes := engine.Settings().Channels[0].Nodes; len(nodes) != 2 || nodes[1] != "unknown-node" {
+		t.Fatalf("snapshot narrowed the configured pool: %v", nodes)
+	}
+	if errUpdate := engine.UpdateSettings(engine.Settings()); errUpdate != nil {
+		t.Fatal(errUpdate)
+	}
+	data, errRead := os.ReadFile(filepath.Join(dir, "settings.yaml"))
+	if errRead != nil {
+		t.Fatal(errRead)
+	}
+	if !bytes.Contains(data, []byte("unknown-node")) {
+		t.Fatalf("saved settings lost configured nodes:\n%s", data)
+	}
+	if bytes.Contains(data, []byte("verified_exits")) || bytes.Contains(data, []byte("203.0.113.5")) {
+		t.Fatalf("runtime exit seeds leaked into persisted settings:\n%s", data)
 	}
 }

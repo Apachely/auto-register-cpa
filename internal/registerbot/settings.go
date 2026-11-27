@@ -61,6 +61,9 @@ type Settings struct {
 const (
 	ProxyPoolModeDisabled = "disabled"
 	ProxyPoolModeEnforce  = "enforce"
+
+	// maxNodeProbeConcurrency caps parallel controller delay requests per sweep.
+	maxNodeProbeConcurrency = 32
 )
 
 // ProxyPoolSettings controls the registration-specific scheduler above the
@@ -92,8 +95,20 @@ type GatewaySettings struct {
 	ShareMode string `yaml:"share-mode,omitempty" json:"share_mode,omitempty"`
 	// Groups restricts which proxy groups may be used. Empty means all.
 	Groups []string `yaml:"groups,omitempty" json:"groups,omitempty"`
-	// HealthyNodesFile is a runtime-generated allowlist for automatic channels.
+	// HealthyNodesFile is a runtime-generated health snapshot. It only seeds node
+	// selection: an expired, unreadable or empty snapshot never blocks startup and
+	// never narrows a channel, because the live controller sweep is authoritative.
 	HealthyNodesFile string `yaml:"healthy-nodes-file,omitempty" json:"healthy_nodes_file,omitempty"`
+	// HealthyNodesTTLMinutes is how long that snapshot may seed exit addresses.
+	HealthyNodesTTLMinutes int `yaml:"healthy-nodes-ttl-minutes,omitempty" json:"healthy_nodes_ttl_minutes,omitempty"`
+	// NodeProbeIntervalSeconds is the idle read-only controller sweep period.
+	// Zero uses the default; a negative value disables the background sweep.
+	NodeProbeIntervalSeconds int `yaml:"node-probe-interval-seconds,omitempty" json:"node_probe_interval_seconds,omitempty"`
+	// NodeProbeTimeoutSeconds bounds one controller delay request. Node tunnels
+	// measure 180ms to 2.6s here, so the budget must stay well above that jitter.
+	NodeProbeTimeoutSeconds int `yaml:"node-probe-timeout-seconds,omitempty" json:"node_probe_timeout_seconds,omitempty"`
+	// NodeProbeConcurrency caps parallel delay requests per sweep.
+	NodeProbeConcurrency int `yaml:"node-probe-concurrency,omitempty" json:"node_probe_concurrency,omitempty"`
 	// VerifiedExits is loaded from the runtime health snapshot and never persisted.
 	VerifiedExits map[string]string `yaml:"-" json:"-"`
 	// PinTimeoutSeconds bounds a node switch plus its exit IP confirmation.
@@ -186,6 +201,38 @@ func (g GatewaySettings) ProbeTimeout() time.Duration {
 	return secondsDuration(g.ProbeTimeoutSeconds, 5)
 }
 
+// HealthyNodesTTL is how long a generated health snapshot may seed exit addresses.
+func (g GatewaySettings) HealthyNodesTTL() time.Duration {
+	return minutesDuration(g.HealthyNodesTTLMinutes, 30)
+}
+
+// NodeProbeInterval is the idle controller sweep period. A non-positive value
+// disables the background sweep entirely.
+func (g GatewaySettings) NodeProbeInterval() time.Duration {
+	if g.NodeProbeIntervalSeconds < 0 {
+		return 0
+	}
+	return secondsDuration(g.NodeProbeIntervalSeconds, 90)
+}
+
+// NodeProbeTimeout bounds one controller delay request. It is intentionally not
+// capped by automaticWaitLimit: node tunnels jitter up to several seconds and a
+// tight budget marks healthy nodes dead.
+func (g GatewaySettings) NodeProbeTimeout() time.Duration {
+	return secondsDuration(g.NodeProbeTimeoutSeconds, 8)
+}
+
+// NodeProbeLimit caps parallel delay requests in one sweep.
+func (g GatewaySettings) NodeProbeLimit() int {
+	if g.NodeProbeConcurrency > 0 {
+		if g.NodeProbeConcurrency <= maxNodeProbeConcurrency {
+			return g.NodeProbeConcurrency
+		}
+		return maxNodeProbeConcurrency
+	}
+	return 12
+}
+
 // CircuitThreshold is how many consecutive gateway failures degrade a channel.
 func (g GatewaySettings) FailureThreshold() int {
 	if g.CircuitThreshold > 0 {
@@ -245,6 +292,13 @@ func secondsDuration(value, fallback int) time.Duration {
 	return time.Duration(fallback) * time.Second
 }
 
+func minutesDuration(value, fallback int) time.Duration {
+	if value > 0 {
+		return time.Duration(value) * time.Minute
+	}
+	return time.Duration(fallback) * time.Minute
+}
+
 // DefaultSettings returns the shipped defaults for a fresh install.
 func DefaultSettings() Settings {
 	return Settings{
@@ -252,16 +306,20 @@ func DefaultSettings() Settings {
 		StateDir: "registerbot",
 		Evidence: true,
 		Gateway: GatewaySettings{
-			ProxyURL:               "http://127.0.0.1:11460",
-			ControllerURL:          "http://127.0.0.1:11461",
-			AutoDiscover:           true,
-			VerifyExitIP:           true,
-			ExitIPURL:              "https://api.ipify.org?format=json",
-			ShareMode:              ShareModeLease,
-			PinTimeoutSeconds:      20,
-			ProbeTimeoutSeconds:    5,
-			CircuitThreshold:       3,
-			CircuitCooldownSeconds: 60,
+			ProxyURL:                 "http://127.0.0.1:11460",
+			ControllerURL:            "http://127.0.0.1:11461",
+			AutoDiscover:             true,
+			VerifyExitIP:             true,
+			ExitIPURL:                "https://api.ipify.org?format=json",
+			ShareMode:                ShareModeLease,
+			PinTimeoutSeconds:        20,
+			ProbeTimeoutSeconds:      8,
+			HealthyNodesTTLMinutes:   30,
+			NodeProbeIntervalSeconds: 90,
+			NodeProbeTimeoutSeconds:  8,
+			NodeProbeConcurrency:     12,
+			CircuitThreshold:         3,
+			CircuitCooldownSeconds:   60,
 		},
 		ProxyPool: ProxyPoolSettings{
 			Mode:                   ProxyPoolModeEnforce,
@@ -345,6 +403,21 @@ func (s *Settings) Normalize() {
 	}
 	if s.Gateway.CircuitCooldownSeconds == 0 {
 		s.Gateway.CircuitCooldownSeconds = def.Gateway.CircuitCooldownSeconds
+	}
+	if s.Gateway.HealthyNodesTTLMinutes <= 0 {
+		s.Gateway.HealthyNodesTTLMinutes = def.Gateway.HealthyNodesTTLMinutes
+	}
+	if s.Gateway.NodeProbeIntervalSeconds == 0 {
+		s.Gateway.NodeProbeIntervalSeconds = def.Gateway.NodeProbeIntervalSeconds
+	}
+	if s.Gateway.NodeProbeTimeoutSeconds <= 0 {
+		s.Gateway.NodeProbeTimeoutSeconds = def.Gateway.NodeProbeTimeoutSeconds
+	}
+	if s.Gateway.NodeProbeConcurrency <= 0 {
+		s.Gateway.NodeProbeConcurrency = def.Gateway.NodeProbeConcurrency
+	}
+	if s.Gateway.NodeProbeConcurrency > maxNodeProbeConcurrency {
+		s.Gateway.NodeProbeConcurrency = maxNodeProbeConcurrency
 	}
 	if s.ProxyPool.Mode == "" {
 		s.ProxyPool.Mode = def.ProxyPool.Mode

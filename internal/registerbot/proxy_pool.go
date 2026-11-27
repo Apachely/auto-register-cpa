@@ -80,6 +80,8 @@ type proxyPoolDocument struct {
 	Cursor       int                             `json:"cursor"`
 	LastNode     string                          `json:"last_node,omitempty"`
 	LastExitIP   string                          `json:"last_exit_ip,omitempty"`
+	LastProbeAt  int64                           `json:"last_probe_at,omitempty"`
+	Reachable    int                             `json:"reachable_nodes,omitempty"`
 	UpdatedAt    int64                           `json:"updated_at"`
 	Nodes        map[string]proxyPoolNode        `json:"nodes"`
 	IPs          map[string]proxyPoolIP          `json:"ips"`
@@ -113,20 +115,24 @@ type ProxyPoolIPView struct {
 
 // ProxyPoolSnapshot is a sanitized management view of the scheduler and quota ledger.
 type ProxyPoolSnapshot struct {
-	Enabled                bool                `json:"enabled"`
-	Mode                   string              `json:"mode"`
-	MaxUsableAccountsPerIP int                 `json:"max_usable_accounts_per_ip"`
-	FailureCooldownSeconds int                 `json:"failure_cooldown_seconds"`
-	TotalNodes             int                 `json:"total_nodes"`
-	ReadyNodes             int                 `json:"ready_nodes"`
-	Reserved               int                 `json:"reserved"`
-	ExhaustedIPs           int                 `json:"exhausted_ips"`
-	UsableAccounts         int                 `json:"usable_accounts"`
-	LastNode               string              `json:"last_node,omitempty"`
-	LastExitIP             string              `json:"last_exit_ip,omitempty"`
-	UpdatedAt              int64               `json:"updated_at"`
-	Nodes                  []ProxyPoolNodeView `json:"nodes"`
-	IPs                    []ProxyPoolIPView   `json:"ips"`
+	Enabled                bool   `json:"enabled"`
+	Mode                   string `json:"mode"`
+	MaxUsableAccountsPerIP int    `json:"max_usable_accounts_per_ip"`
+	FailureCooldownSeconds int    `json:"failure_cooldown_seconds"`
+	TotalNodes             int    `json:"total_nodes"`
+	ReadyNodes             int    `json:"ready_nodes"`
+	Reserved               int    `json:"reserved"`
+	ExhaustedIPs           int    `json:"exhausted_ips"`
+	UsableAccounts         int    `json:"usable_accounts"`
+	LastNode               string `json:"last_node,omitempty"`
+	LastExitIP             string `json:"last_exit_ip,omitempty"`
+	// LastProbeAt is when the idle controller sweep last folded results in.
+	LastProbeAt int64 `json:"last_probe_at,omitempty"`
+	// ProbeReachableNodes is how many nodes that sweep could reach.
+	ProbeReachableNodes int                 `json:"probe_reachable_nodes,omitempty"`
+	UpdatedAt           int64               `json:"updated_at"`
+	Nodes               []ProxyPoolNodeView `json:"nodes"`
+	IPs                 []ProxyPoolIPView   `json:"ips"`
 }
 
 // ProxyPool schedules nodes through the existing gateway and persists only
@@ -301,6 +307,8 @@ func (p *ProxyPool) Snapshot() ProxyPoolSnapshot {
 		FailureCooldownSeconds: settings.FailureCooldownSeconds,
 		LastNode:               p.doc.LastNode,
 		LastExitIP:             p.doc.LastExitIP,
+		LastProbeAt:            p.doc.LastProbeAt,
+		ProbeReachableNodes:    p.doc.Reachable,
 		UpdatedAt:              p.doc.UpdatedAt,
 		Nodes:                  make([]ProxyPoolNodeView, 0, len(p.doc.Nodes)),
 		IPs:                    make([]ProxyPoolIPView, 0, len(p.doc.IPs)),
@@ -410,6 +418,12 @@ func rotateCandidates(nodes []string, cursor int) []string {
 }
 
 func (p *ProxyPool) markFailure(group, node, reason string) error {
+	return p.markFailureAt(group, node, reason, time.Now())
+}
+
+// markFailureAt cools one node down. The clock is a parameter so TTL behaviour is
+// testable without wall-clock sleeps.
+func (p *ProxyPool) markFailureAt(group, node, reason string, now time.Time) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	key := proxyNodeKey(group, node)
@@ -418,7 +432,7 @@ func (p *ProxyPool) markFailure(group, node, reason string) error {
 	record.Group, record.Node, record.Active = group, node, true
 	record.Failures++
 	record.LastReason = reason
-	record.CooldownUntil = time.Now().Add(time.Duration(p.settings.FailureCooldownSeconds) * time.Second).UnixMilli()
+	record.CooldownUntil = now.Add(time.Duration(p.settings.FailureCooldownSeconds) * time.Second).UnixMilli()
 	p.doc.Nodes[key] = record
 	if errSave := p.persistLocked(); errSave != nil {
 		if existed {
@@ -430,6 +444,93 @@ func (p *ProxyPool) markFailure(group, node, reason string) error {
 		return errSave
 	}
 	return nil
+}
+
+// ApplyProbeResults folds one idle controller sweep into the ledger: reachable
+// nodes are promoted out of cooldown, unreachable ones are cooled down. Nodes the
+// sweep did not cover keep their current state.
+func (p *ProxyPool) ApplyProbeResults(result NodeProbeResult, now time.Time) (int, int, error) {
+	if strings.TrimSpace(result.Group) == "" || len(result.Reachable)+len(result.Unreachable) == 0 {
+		return 0, 0, nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	cooldown := time.Duration(p.settings.FailureCooldownSeconds) * time.Second
+	promoted, cooled, changed := 0, 0, false
+	previous := make(map[string]proxyPoolNode, len(result.Reachable)+len(result.Unreachable))
+	previousUpdatedAt, previousProbe, previousReachable := p.doc.UpdatedAt, p.doc.LastProbeAt, p.doc.Reachable
+	p.doc.LastProbeAt, p.doc.Reachable = now.UnixMilli(), len(result.Reachable)
+	for node := range result.Reachable {
+		key := proxyNodeKey(result.Group, node)
+		record, existed := p.doc.Nodes[key]
+		if !existed {
+			record = proxyPoolNode{Group: result.Group, Node: node}
+		}
+		previous[key] = record
+		record.Group, record.Node, record.Active = result.Group, node, true
+		if record.Failures != 0 || record.CooldownUntil != 0 || record.LastReason != "" {
+			promoted++
+		}
+		record.Failures, record.CooldownUntil, record.LastReason = 0, 0, ""
+		p.doc.Nodes[key] = record
+		changed = true
+	}
+	for _, node := range result.Unreachable {
+		key := proxyNodeKey(result.Group, strings.TrimSpace(node))
+		record, existed := p.doc.Nodes[key]
+		if !existed {
+			record = proxyPoolNode{Group: result.Group, Node: node}
+		} else if _, reachable := result.Reachable[record.Node]; reachable {
+			continue
+		}
+		previous[key] = record
+		// A node the sweep could not reach is not proven exhausted, so its measured
+		// exit stays untouched; only scheduling eligibility decays.
+		record.Group, record.Node, record.Active = result.Group, node, true
+		record.Failures++
+		record.LastReason = "node_unreachable"
+		record.CooldownUntil = now.Add(cooldown).UnixMilli()
+		p.doc.Nodes[key] = record
+		cooled++
+		changed = true
+	}
+	if !changed {
+		p.doc.LastProbeAt, p.doc.Reachable = previousProbe, previousReachable
+		return 0, 0, nil
+	}
+	if errSave := p.persistLocked(); errSave != nil {
+		for key, record := range previous {
+			p.doc.Nodes[key] = record
+		}
+		p.doc.UpdatedAt = previousUpdatedAt
+		p.doc.LastProbeAt, p.doc.Reachable = previousProbe, previousReachable
+		return 0, 0, errSave
+	}
+	return promoted, cooled, nil
+}
+
+// preferMeasured orders candidates so a sweep only ever spends an attempt on a
+// node that currently looks usable: measured exit first, then unmeasured, then
+// cooling nodes as a last resort. The relative order inside each class is kept,
+// which preserves the existing rotation cursor semantics.
+func preferMeasured(group string, nodes []string, records map[string]proxyPoolNode, nowMS int64) []string {
+	ready := make([]string, 0, len(nodes))
+	unknown := make([]string, 0, len(nodes))
+	cooling := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		record, found := records[proxyNodeKey(group, node)]
+		switch {
+		case !found:
+			unknown = append(unknown, node)
+		case record.CooldownUntil > nowMS:
+			cooling = append(cooling, node)
+		case strings.TrimSpace(record.ExitIP) != "":
+			ready = append(ready, node)
+		default:
+			unknown = append(unknown, node)
+		}
+	}
+	return append(append(ready, unknown...), cooling...)
 }
 
 func (p *ProxyPool) reservedSlotsLocked(exitIP, holder string) int {
@@ -459,11 +560,12 @@ func (p *ProxyPool) Acquire(ctx context.Context, channel ChannelSettings, holder
 	settings := p.settings
 	reservation, resuming := p.doc.Reservations[holder]
 	cursor := p.doc.Cursor
+	ordered := preferMeasured(channel.Group, nodes, p.doc.Nodes, time.Now().UnixMilli())
 	p.mu.Unlock()
 	if !settings.Enabled() && !resuming {
 		return p.gateway.Acquire(ctx, channel, holder)
 	}
-	candidates := rotateCandidates(nodes, cursor)
+	candidates := rotateCandidates(ordered, cursor)
 	if resuming {
 		candidates = []string{reservation.Node}
 	}

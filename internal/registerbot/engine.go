@@ -146,9 +146,9 @@ func NewEngine(stateDir string, settings Settings, importer ImportFunc, drivers 
 		}
 		settings = loaded
 	}
-	if errHealthy := applyHealthyNodes(&settings, stateDir); errHealthy != nil {
-		return nil, errHealthy
-	}
+	// The generated health snapshot only seeds exit addresses. Every failure mode
+	// degrades to "no seed" instead of refusing to start the module.
+	healthyReport := applyHealthyNodes(&settings, stateDir, time.Now())
 	if err := validateSettings(&settings); err != nil {
 		return nil, err
 	}
@@ -227,6 +227,8 @@ func NewEngine(stateDir string, settings Settings, importer ImportFunc, drivers 
 	}
 	e.startWorkersLocked()
 	e.startBrowserWarmup(settings)
+	e.bus.Emit(Event{Stage: StageNodeHealth, Level: healthyReport.Level(), Message: healthyReport.Summary()})
+	e.startNodeHealthLoop()
 	return e, nil
 }
 
@@ -243,7 +245,14 @@ func (e *Engine) ProxyPoolSnapshot() ProxyPoolSnapshot { return e.proxyPool.Snap
 
 func (e *Engine) RefreshProxyPool(ctx context.Context) (ProxyPoolSnapshot, error) {
 	settings := e.Settings()
-	return e.proxyPool.Refresh(ctx, settings.Channels)
+	snapshot, errRefresh := e.proxyPool.Refresh(ctx, settings.Channels)
+	if errRefresh != nil {
+		return snapshot, errRefresh
+	}
+	// Fold one live reachability sweep into the same refresh the panel triggers, so
+	// node availability never depends on how old the startup snapshot file is.
+	e.probeNodeHealth(ctx)
+	return e.proxyPool.Snapshot(), nil
 }
 
 func (e *Engine) UpdateProxyPool(settings ProxyPoolSettings) error {

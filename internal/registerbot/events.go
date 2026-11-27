@@ -30,6 +30,8 @@ const (
 	StageFailed       = "failed"
 	StageSkipped      = "skipped"
 	StagePaused       = "paused"
+	// StageNodeHealth reports the idle controller reachability sweep.
+	StageNodeHealth = "node_health"
 )
 
 // Terminal stages close an account row.
