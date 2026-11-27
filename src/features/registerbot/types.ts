@@ -127,6 +127,10 @@ export interface RegisterProxyPool extends RegisterProxyPoolSettings {
   lastNode: string;
   lastExitIp: string;
   updatedAt: number;
+  /** When the last idle controller sweep folded reachability into the ledger. */
+  lastProbeAt: number;
+  /** How many nodes that sweep could actually reach. */
+  probeReachableNodes: number;
   nodes: RegisterProxyPoolNode[];
   ips: RegisterProxyPoolIp[];
 }

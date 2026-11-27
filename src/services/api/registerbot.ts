@@ -132,6 +132,8 @@ export function readRegisterProxyPool(value: unknown): RegisterProxyPool {
     lastNode: text(item.last_node),
     lastExitIp: text(item.last_exit_ip),
     updatedAt: number(item.updated_at),
+    lastProbeAt: number(item.last_probe_at),
+    probeReachableNodes: number(item.probe_reachable_nodes),
     nodes: list(item.nodes).map((value) => {
       const node = record(value);
       return {

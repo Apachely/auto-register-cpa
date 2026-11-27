@@ -141,6 +141,12 @@ export function ProxyPoolPanel({ pool, busy, onSave, onRefresh }: Props) {
               <span className={styles.hint}>
                 {t('registerbot.proxy_pool.updated')} · {timeLabel(pool.updatedAt, i18n.language)}
               </span>
+              {pool.lastProbeAt > 0 && (
+                <span className={styles.hint}>
+                  {t('registerbot.proxy_pool.probed')} · {timeLabel(pool.lastProbeAt, i18n.language)} ·{' '}
+                  {pool.probeReachableNodes}/{pool.totalNodes}
+                </span>
+              )}
             </div>
           </form>
         </Card>

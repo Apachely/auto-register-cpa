@@ -228,6 +228,8 @@ describe('registration contracts and connection isolation', () => {
         total_nodes: 2,
         ready_nodes: 1,
         usable_accounts: 4,
+        last_probe_at: 1795750000,
+        probe_reachable_nodes: 2,
         nodes: [
           {
             group: 'group',
@@ -253,6 +255,8 @@ describe('registration contracts and connection isolation', () => {
       totalNodes: 2,
       readyNodes: 1,
       usableAccounts: 4,
+      lastProbeAt: 1795750000,
+      probeReachableNodes: 2,
       nodes: [{ node: 'node-a', exitIp: '203.0.113.40', status: 'ready' }],
       ips: [{ exitIp: '203.0.113.40', usableAccounts: 2, remaining: 1 }],
     });

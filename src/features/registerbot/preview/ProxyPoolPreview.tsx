@@ -15,6 +15,8 @@ const fixture: RegisterProxyPool = {
   lastNode: 'HK-IEPL 03',
   lastExitIp: '203.0.113.23',
   updatedAt: Date.now(),
+  lastProbeAt: Date.now(),
+  probeReachableNodes: 3,
   nodes: [
     {
       group: '节点选择',
