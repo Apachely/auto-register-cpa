@@ -26,6 +26,9 @@
 /registerbot-bot/bot-core.pid
 /*.pid
 
+# Personal proxy subscription snapshot (node names only, still private)
+/cpa-dev/artifacts-registerbot/verification/proxies.json
+
 # Upstream source checkouts track their own git histories.
 /cpa-dev/cpa-backend/
 /cpa-dev/cpa-panel/
