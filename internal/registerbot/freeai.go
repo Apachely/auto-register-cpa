@@ -365,8 +365,8 @@ func (d *FreeAIDriver) Run(ctx context.Context, task *Task) (harvest Harvest, ru
 				task.Report(page.Action, "warn", "sign-in page timed out; restarting this account automatically"+evidenceMessage)
 				return harvest, errors.New("registerbot: ordinary sign-in page timed out")
 			}
-			task.Report(page.Action, "warn", "page did not advance within 10 seconds; unattended registration failed"+evidenceMessage)
-			return harvest, errors.New("registerbot: page did not advance within 10 seconds")
+			task.Report(page.Action, "warn", "page did not advance within "+set.Browser.StepTimeout().String()+"; unattended registration failed"+evidenceMessage)
+			return harvest, errors.New("registerbot: page did not advance within " + set.Browser.StepTimeout().String())
 		}
 		select {
 		case <-acquireCtx.Done():

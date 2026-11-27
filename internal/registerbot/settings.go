@@ -41,7 +41,7 @@ const (
 	ShareModeLease      = "lease"
 	ShareModePerChannel = "per_channel"
 	ShareModeShared     = "shared"
-	automaticWaitLimit  = 10 * time.Second
+	automaticWaitLimit  = 30 * time.Second
 )
 
 // Settings is the persisted registerbot configuration. It lives in its own YAML
