@@ -55,6 +55,11 @@ func (s *Server) registerManagementV8Routes() {
 	v8.GET("/observability/usage/api-keys", s.mgmt.GetAPIKeyUsage)
 	v8.GET("/observability/usage/queue", s.mgmt.GetUsageQueue)
 	v8.GET("/observability/requests/in-flight", s.mgmt.GetInFlightRequests)
+	// Measured upstream credit for openai-compatible providers that opted into
+	// a credit-probe block. Providers without the block return an empty item
+	// list, so this surface is inert for every other channel.
+	v8.GET("/observability/credits/openai-compatibility", s.mgmt.GetOpenAICompatCredits)
+	v8.POST("/observability/credits/openai-compatibility/refresh", s.mgmt.RefreshOpenAICompatCredits)
 
 	v8.GET("/credentials", s.mgmt.ListAuthFiles)
 	v8.POST("/credentials", s.mgmt.UploadAuthFileV8)

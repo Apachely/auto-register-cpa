@@ -137,11 +137,21 @@ func (m *Manager) resolveOpenAICompatUpstreamModelPool(auth *Auth, requestedMode
 }
 
 func resolveOpenAICompatUpstreamModelPool(cfg *internalconfig.Config, auth *Auth, requestedModel string) []string {
+	entry := openAICompatEntryForPool(cfg, auth, requestedModel)
+	if entry == nil {
+		return nil
+	}
+	return resolveModelAliasPoolFromConfigModels(strings.TrimSpace(requestedModel), asModelAliasEntries(entry.Models))
+}
+
+// openAICompatEntryForPool resolves the provider entry that owns a configured
+// OpenAI-compatibility credential. It returns nil for non-configured
+// credentials, an empty model name, or an unresolvable provider entry.
+func openAICompatEntryForPool(cfg *internalconfig.Config, auth *Auth, requestedModel string) *internalconfig.OpenAICompatibility {
 	if !isConfiguredOpenAICompatAuth(auth) {
 		return nil
 	}
-	requestedModel = strings.TrimSpace(requestedModel)
-	if requestedModel == "" {
+	if strings.TrimSpace(requestedModel) == "" {
 		return nil
 	}
 	if cfg == nil {
@@ -153,11 +163,42 @@ func resolveOpenAICompatUpstreamModelPool(cfg *internalconfig.Config, auth *Auth
 		providerKey = strings.TrimSpace(auth.Attributes["provider_key"])
 		compatName = strings.TrimSpace(auth.Attributes["compat_name"])
 	}
-	entry := resolveOpenAICompatConfigForAuth(cfg, auth, providerKey, compatName)
-	if entry == nil {
-		return nil
+	return resolveOpenAICompatConfigForAuth(cfg, auth, providerKey, compatName)
+}
+
+// orderModelPool applies the provider's pool ordering to a multi-entry pool.
+// Priority pools keep the configured order so the first entry is drained before
+// its fallbacks; every other provider keeps the historical per-request rotation,
+// and single-entry pools are returned untouched without consuming an offset.
+func (m *Manager) orderModelPool(priority bool, auth *Auth, requestedModel string, pool []string) []string {
+	if len(pool) <= 1 {
+		return pool
 	}
-	return resolveModelAliasPoolFromConfigModels(requestedModel, asModelAliasEntries(entry.Models))
+	if priority {
+		return pool
+	}
+	offset := m.nextModelPoolOffset(openAICompatModelPoolKey(auth, requestedModel), len(pool))
+	return rotateStrings(pool, offset)
+}
+
+// ServedModelHeader names the upstream model that actually served a request.
+// It exists so operators can verify credit-tier fallbacks while the
+// client-visible model name stays unchanged.
+const ServedModelHeader = "X-CPA-Served-Model"
+
+// markServedModel records the upstream model that served the response.
+// Only alias-pool executions are annotated: a provider without a pool has no
+// substitution to report, so every other channel keeps byte-identical response
+// headers. An empty model name also leaves the headers untouched.
+func markServedModel(headers http.Header, servedModel string, pooled bool) http.Header {
+	if !pooled || strings.TrimSpace(servedModel) == "" {
+		return headers
+	}
+	if headers == nil {
+		headers = make(http.Header, 1)
+	}
+	headers.Set(ServedModelHeader, servedModel)
+	return headers
 }
 
 func preserveRequestedModelSuffix(requestedModel, resolved string) string {
@@ -247,12 +288,10 @@ func (m *Manager) executionModelCandidates(auth *Auth, routeModel string) []stri
 	}
 	requestedModel := rewriteModelForAuth(routeModel, auth)
 	requestedModel = m.applyOAuthModelAlias(auth, requestedModel)
-	if pool := m.resolveOpenAICompatUpstreamModelPool(auth, requestedModel); len(pool) > 0 {
-		if len(pool) == 1 {
-			return pool
+	if entry := openAICompatEntryForPool(m.loadAPIKeyModelRouting().config, auth, requestedModel); entry != nil {
+		if pool := resolveModelAliasPoolFromConfigModels(requestedModel, asModelAliasEntries(entry.Models)); len(pool) > 0 {
+			return m.orderModelPool(entry.IsPriorityModelPoolOrdering(), auth, requestedModel, pool)
 		}
-		offset := m.nextModelPoolOffset(openAICompatModelPoolKey(auth, requestedModel), len(pool))
-		return rotateStrings(pool, offset)
 	}
 	resolved := m.applyAPIKeyModelAlias(auth, requestedModel)
 	if strings.TrimSpace(resolved) == "" {
@@ -529,14 +568,12 @@ func (m *Manager) executionModelCandidatesWithAlias(auth *Auth, routeModel strin
 		}
 	}
 	if len(candidates) == 0 {
-		if pool := resolveOpenAICompatUpstreamModelPool(routing.config, auth, upstreamModel); len(pool) > 0 {
-			if len(pool) == 1 {
-				candidates = pool
-			} else {
-				offset := m.nextModelPoolOffset(openAICompatModelPoolKey(auth, upstreamModel), len(pool))
-				candidates = rotateStrings(pool, offset)
+		if entry := openAICompatEntryForPool(routing.config, auth, upstreamModel); entry != nil {
+			if pool := resolveModelAliasPoolFromConfigModels(upstreamModel, asModelAliasEntries(entry.Models)); len(pool) > 0 {
+				candidates = m.orderModelPool(entry.IsPriorityModelPoolOrdering(), auth, upstreamModel, pool)
 			}
-		} else {
+		}
+		if len(candidates) == 0 {
 			resolved := m.applyAPIKeyModelAliasWithRouting(routing, auth, upstreamModel)
 			if strings.TrimSpace(resolved) == "" {
 				resolved = upstreamModel

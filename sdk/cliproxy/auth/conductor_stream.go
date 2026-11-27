@@ -1004,6 +1004,7 @@ func (m *Manager) executeStreamWithModelPool(ctx context.Context, executor Provi
 		attemptAliasResult := resolveAttemptAliasResult(routing, auth, routeModel, execModel, aliasResult)
 		handoffCancel := cancelAttempt
 		cancelAttempt = nil
+		streamResult.Headers = markServedModel(streamResult.Headers, execModel, pooled)
 		return m.wrapStreamResultWithCancel(execCtx, auth.Clone(), provider, resultModel, routeModel, streamResult.Headers, buffered, streamResult.Chunks, attemptAliasResult, ephemeralResult, execOpts, executionSeq, handoffCancel), nil
 	}
 	if lastErr == nil {

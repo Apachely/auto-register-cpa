@@ -178,6 +178,8 @@ retain the corresponding business operation's fields.
 | `/observability/logs/requests/<id>` | GET | Get a request log. |
 | `/observability/usage/api-keys` | GET | Get API-key usage. |
 | `/observability/usage/queue` | GET | Get queued usage events. |
+| `/observability/credits/openai-compatibility` | GET | Read the last measured upstream credit per provider that configured a `credit-probe`. |
+| `/observability/credits/openai-compatibility/refresh` | POST | Measure synchronously; optional `?index=<n>` limits the sweep to one provider. |
 | `/credentials` | GET, POST, DELETE | List, upload, or delete credential files. |
 | `/credentials/models` | GET | Get credential models. |
 | `/credentials/download` | GET | Download a credential file. |
@@ -197,6 +199,50 @@ retain the corresponding business operation's fields.
 | `/plugins/store` | GET | List the plugin store (supports optional `?refresh=true` to bypass cached release checks). |
 | `/plugins/store/<id>/install` | POST | Install or update a plugin. |
 | `/plugins/<id>/quota` | GET, POST, DELETE | Read, fetch, or reset plugin quota. |
+
+## Measured upstream credit
+
+Providers under `api-keys.openai-compatibility` may configure a `credit-probe`
+block (see [config.example.yaml](../config.example.yaml)). The probe sends one
+deliberately unaffordable completion request per credential: a provider that
+gates on the worst-case cost of a request refuses it before generating
+anything and echoes the exact remaining balance inside the refusal, so the
+measurement costs nothing. Providers without the block never appear in the
+response, so this surface is inert for every other channel.
+
+```http
+GET /v8/management/observability/credits/openai-compatibility
+```
+
+```json
+{"items":[{"index":0,"name":"FreeAi","credit":{
+  "provider":"FreeAi","base_url":"https://api.freeaiapikey.com/v1",
+  "checked_at":"2026-11-27T08:20:11Z","total":25,"measured":21,"credited":18,
+  "unusable":5,"remaining":71.295247,"used":26.704874,"initial_credit":5,
+  "refreshing":false,
+  "tiers":[
+    {"model":"anthropic/claude-opus-5.5","reservation":1.92,"count":16,"available":68.198617},
+    {"model":"anthropic/claude-sonnet-5.5","reservation":0.256,"count":2,"available":3.09663}
+  ],
+  "credentials":[{"masked":"sk-PcdM...ZXuA","balance":1.851761,"reservation":12.000003,
+                  "tier":1,"tier_model":"anthropic/claude-sonnet-5.5","exact":true}]
+}}]}
+```
+
+A credential belongs to the **first** tier whose reservation it can still
+afford, so `tiers[0].available` is credit still spendable on the premium model
+and `tiers[1].available` is credit only the cheaper model can still consume.
+`used` is derived as `initial_credit - balance` and is counted only over
+credentials with a positive balance: a zero or slightly negative balance is
+indistinguishable between "fully drained" and "never granted credit", so it is
+excluded rather than reported as a full spend. `masked` never contains the
+whole credential.
+
+The first read after a start returns `checked_at` as the zero timestamp with
+`refreshing: true`; the measurement runs in the background and the next read
+carries the numbers. `POST .../credits/openai-compatibility/refresh` performs
+the same sweep synchronously and returns the identical `items` shape plus a
+`refreshed` count.
 
 ## OAuth
 

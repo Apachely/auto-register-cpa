@@ -1071,6 +1071,44 @@ upstream:
 #           alias: "claude-opus-4.66"
 #         - name: "kimi-k2.5"
 #           alias: "claude-opus-4.66"
+#       # Optional: how an alias pool above is consumed.
+#       #   round-robin (default): rotate the starting pool entry per request,
+#       #     keeping every member warm.
+#       #   priority: always start from the first configured member, so an
+#       #     expensive premium model is drained before its cheaper fallback is
+#       #     ever used. Members blocked by their own model-level cooldown are
+#       #     skipped, so a premium model that the upstream refuses (HTTP 402
+#       #     balance gate) falls back to the cheaper one inside the same
+#       #     request and stays skipped until its cooldown expires.
+#       # model-pool-ordering: "priority"
+#       # Optional: measure the remaining upstream credit of every credential.
+#       # Disabled unless configured, and only ever read for this provider.
+#       # The probe sends one deliberately unaffordable request per key: a
+#       # provider that gates on the worst-case cost of a request answers it with
+#       # "Insufficient balance: $X available, $Y required" before generating
+#       # anything, so the rejection reports the exact balance for free. When a
+#       # credential can still afford the ceiling, it escalates max-tokens up to
+#       # four times until the request is refused.
+#       # credit-probe:
+#       #   enabled: true
+#       #   model: "anthropic/claude-opus-5.5"  # probe model; must match a tier below
+#       #   max-tokens: 800000                  # reservation ceiling; must exceed any balance
+#       #   interval-minutes: 30                # background refresh interval
+#       #   timeout-seconds: 12                 # per credential probe timeout
+#       #   concurrency: 8                      # credentials probed at once (max 32)
+#       #   initial-credit: 5                   # per-credential credit used to derive spend
+#       #   tiers:                              # ordered; a credential belongs to the
+#       #     - model: "anthropic/claude-opus-5.5"   # first tier whose reservation it affords
+#       #       output-per-m: 15                # upstream output price per million tokens
+#       #       max-tokens: 128000              # optional, defaults to 128000
+#       #     - model: "anthropic/claude-sonnet-5.5"
+#       #       output-per-m: 2
+#       # The measured numbers are exposed on GET /v8/management/observability/credits/openai-compatibility
+#       # as a "credit" object per provider, on
+#       # as one item per provider, and can be refreshed
+#       # synchronously with POST /v8/management/observability/credits/openai-compatibility/refresh.
+#       # Every fallback response also carries the model that actually served it in
+#       # the X-CPA-Served-Model header.
 
 # END API KEY EXAMPLES
 

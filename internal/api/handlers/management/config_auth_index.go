@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v8/internal/creditprobe"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/watcher/synthesizer"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
 	"gopkg.in/yaml.v3"
@@ -61,6 +62,14 @@ type openAICompatibilityWithAuthIndex struct {
 	RequestRetry          *int                                     `json:"request-retry,omitempty"`
 	RequestScopedErrors   []config.RequestScopedErrorRule          `json:"request-scoped-errors,omitempty"`
 	AuthIndex             string                                   `json:"auth-index,omitempty"`
+	// ModelPoolOrdering mirrors the configured alias-pool consumption mode.
+	ModelPoolOrdering string `json:"model-pool-ordering,omitempty"`
+	// CreditProbe mirrors the configured balance probe block, when enabled.
+	CreditProbe *config.OpenAICompatibilityCreditProbe `json:"credit-probe,omitempty"`
+	// Credit carries the latest measured balances for this provider. Present
+	// only when the provider opts into the probe, so other providers' payloads
+	// stay byte-identical.
+	Credit *creditprobe.Summary `json:"credit,omitempty"`
 }
 
 func liveAuthIndexFromManager(manager *coreauth.Manager) map[string]string {
@@ -922,6 +931,11 @@ func (h *Handler) openAICompatibilityWithAuthIndex() []openAICompatibilityWithAu
 			RequestRetry:          entry.RequestRetry,
 			RequestScopedErrors:   entry.RequestScopedErrors,
 			AuthIndex:             "",
+			ModelPoolOrdering:     entry.ModelPoolOrdering,
+			CreditProbe:           entry.CreditProbe,
+		}
+		if credit := h.creditProbeSnapshot(&entry, i); credit != nil {
+			response.Credit = credit
 		}
 		if len(entry.APIKeyEntries) == 0 {
 			idParts := []string{entry.BaseURL}

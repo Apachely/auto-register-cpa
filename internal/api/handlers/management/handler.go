@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/buildinfo"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v8/internal/creditprobe"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/pluginhost"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/pluginstore"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/registerbot"
@@ -70,6 +71,9 @@ type Handler struct {
 	registerBotCommitMu     sync.Mutex
 	registerBot             *registerbot.Engine
 	registerBotClosed       bool
+	// creditProbe measures upstream balances for providers that opt in. It is
+	// created once and internally synchronized, so it is read without h.mu.
+	creditProbe *creditprobe.Manager
 }
 
 type configReloadSnapshot struct {
@@ -90,6 +94,7 @@ func NewHandler(cfg *config.Config, configFilePath string, manager *coreauth.Man
 		tokenStore:          sdkAuth.GetTokenStore(),
 		allowRemoteOverride: envSecret != "",
 		envSecret:           envSecret,
+		creditProbe:         creditprobe.NewManager(),
 	}
 	h.startAttemptCleanup()
 	return h

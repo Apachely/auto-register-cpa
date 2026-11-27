@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/MoeForge/moego/regexp"
 	sdkpluginstore "github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginstore"
@@ -298,6 +299,8 @@ func (cfg *Config) SanitizeOpenAICompatibility() {
 		e.Prefix = normalizeModelPrefix(e.Prefix)
 		e.BaseURL = strings.TrimSpace(e.BaseURL)
 		e.Headers = NormalizeHeaders(e.Headers)
+		e.ModelPoolOrdering = normalizeModelPoolOrdering(e.ModelPoolOrdering)
+		e.CreditProbe = normalizeCreditProbe(e.CreditProbe)
 		if e.BaseURL == "" {
 			// Skip providers with no base-url; treated as removed
 			continue
@@ -305,6 +308,130 @@ func (cfg *Config) SanitizeOpenAICompatibility() {
 		out = append(out, e)
 	}
 	cfg.OpenAICompatibility = out
+}
+
+// DefaultCreditProbeInterval is the built-in refresh interval of the credit probe.
+const DefaultCreditProbeInterval = 30 * time.Minute
+
+// DefaultCreditProbeTimeout is the built-in per-credential probe timeout.
+const DefaultCreditProbeTimeout = 12 * time.Second
+
+// DefaultCreditProbeConcurrency is the built-in probe parallelism.
+const DefaultCreditProbeConcurrency = 8
+
+// MaxCreditProbeConcurrency bounds the configured probe parallelism.
+const MaxCreditProbeConcurrency = 32
+
+// DefaultCreditProbeInitialCredit is the credit assumed per credential when
+// the configuration does not state one.
+const DefaultCreditProbeInitialCredit = 5.0
+
+// normalizeModelPoolOrdering canonicalizes the pool ordering mode. Any unknown
+// or empty value keeps the historical round-robin behaviour so that omitting
+// the field never changes routing for an existing provider.
+func normalizeModelPoolOrdering(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case ModelPoolOrderingPriority:
+		return ModelPoolOrderingPriority
+	default:
+		return ModelPoolOrderingRoundRobin
+	}
+}
+
+// IsPriorityModelPoolOrdering reports whether a provider drains its model pool
+// in configured order.
+func (e *OpenAICompatibility) IsPriorityModelPoolOrdering() bool {
+	if e == nil {
+		return false
+	}
+	return normalizeModelPoolOrdering(e.ModelPoolOrdering) == ModelPoolOrderingPriority
+}
+
+// normalizeCreditProbe drops a disabled probe entirely and fills defaults for
+// an enabled one. A probe without any usable tier is discarded so that a
+// half-written block cannot produce partially meaningful credit numbers.
+func normalizeCreditProbe(probe *OpenAICompatibilityCreditProbe) *OpenAICompatibilityCreditProbe {
+	if probe == nil || !probe.Enabled {
+		return nil
+	}
+	out := *probe
+	out.Model = strings.TrimSpace(out.Model)
+	if out.Model == "" || len(out.Tiers) == 0 {
+		return nil
+	}
+	if out.MaxTokens <= 0 {
+		out.MaxTokens = DefaultCreditProbeTierMaxTokens
+	}
+	if out.IntervalMinutes <= 0 {
+		out.IntervalMinutes = int(DefaultCreditProbeInterval / time.Minute)
+	}
+	if out.TimeoutSeconds <= 0 {
+		out.TimeoutSeconds = int(DefaultCreditProbeTimeout / time.Second)
+	}
+	if out.Concurrency <= 0 {
+		out.Concurrency = DefaultCreditProbeConcurrency
+	}
+	if out.Concurrency > MaxCreditProbeConcurrency {
+		out.Concurrency = MaxCreditProbeConcurrency
+	}
+	if out.InitialCredit <= 0 {
+		out.InitialCredit = DefaultCreditProbeInitialCredit
+	}
+	tiers := make([]OpenAICompatibilityCreditTier, 0, len(out.Tiers))
+	for i := range out.Tiers {
+		tier := out.Tiers[i]
+		tier.Model = strings.TrimSpace(tier.Model)
+		if tier.Model == "" || tier.OutputPerM <= 0 {
+			continue
+		}
+		tiers = append(tiers, tier)
+	}
+	if len(tiers) == 0 {
+		return nil
+	}
+	out.Tiers = tiers
+	return &out
+}
+
+// CreditProbeInterval exposes the normalized refresh interval.
+func (p *OpenAICompatibilityCreditProbe) CreditProbeInterval() time.Duration {
+	if p == nil || p.IntervalMinutes <= 0 {
+		return DefaultCreditProbeInterval
+	}
+	return time.Duration(p.IntervalMinutes) * time.Minute
+}
+
+// CreditProbeTimeout exposes the normalized per-request timeout.
+func (p *OpenAICompatibilityCreditProbe) CreditProbeTimeout() time.Duration {
+	if p == nil || p.TimeoutSeconds <= 0 {
+		return DefaultCreditProbeTimeout
+	}
+	return time.Duration(p.TimeoutSeconds) * time.Second
+}
+
+// CreditProbeLimit exposes the normalized concurrency bound.
+func (p *OpenAICompatibilityCreditProbe) CreditProbeLimit() int {
+	if p == nil || p.Concurrency <= 0 {
+		return DefaultCreditProbeConcurrency
+	}
+	if p.Concurrency > MaxCreditProbeConcurrency {
+		return MaxCreditProbeConcurrency
+	}
+	return p.Concurrency
+}
+
+// TierReservationFor returns the worst-case reservation of the named tier.
+func (p *OpenAICompatibilityCreditProbe) TierReservationFor(model string) float64 {
+	if p == nil {
+		return 0
+	}
+	model = strings.ToLower(strings.TrimSpace(model))
+	for i := range p.Tiers {
+		if strings.ToLower(strings.TrimSpace(p.Tiers[i].Model)) == model {
+			return p.Tiers[i].Reservation()
+		}
+	}
+	return 0
 }
 
 // SanitizeCodexKeys removes Codex API key entries missing a BaseURL.

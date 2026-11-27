@@ -1152,6 +1152,102 @@ type OpenAICompatibility struct {
 
 	// RequestScopedErrors configures custom classification rules for upstream errors.
 	RequestScopedErrors []RequestScopedErrorRule `yaml:"request-scoped-errors,omitempty" json:"request-scoped-errors,omitempty"`
+
+	// ModelPoolOrdering controls how an alias bound to several upstream names
+	// (a model pool) is consumed.
+	//   - "round-robin" (default): rotate the starting pool entry per request,
+	//     which is the historical behaviour and keeps every pool member hot.
+	//   - "priority": always start from the configured order so the first entry
+	//     is drained before its fallbacks are reached. Entries blocked by their
+	//     own model-level cooldown are skipped, so a fallback takes over
+	//     automatically and rejoins as soon as it is admissible again.
+	// Only read for providers that actually declare a pool; every other
+	// provider keeps the default rotation and is unaffected.
+	ModelPoolOrdering string `yaml:"model-pool-ordering,omitempty" json:"model-pool-ordering,omitempty"`
+
+	// CreditProbe optionally measures the remaining upstream credit of every
+	// credential of this provider. Disabled unless explicitly configured.
+	CreditProbe *OpenAICompatibilityCreditProbe `yaml:"credit-probe,omitempty" json:"credit-probe,omitempty"`
+}
+
+// Model pool ordering values.
+const (
+	// ModelPoolOrderingRoundRobin rotates the starting pool entry per request.
+	ModelPoolOrderingRoundRobin = "round-robin"
+	// ModelPoolOrderingPriority drains pool entries in configured order.
+	ModelPoolOrderingPriority = "priority"
+)
+
+// DefaultCreditProbeTierMaxTokens is the completion reservation assumed for a
+// credit tier when it does not declare its own max-tokens. It matches the
+// output ceiling clients such as Claude Code request by default.
+const DefaultCreditProbeTierMaxTokens = 128000
+
+// OpenAICompatibilityCreditProbe configures the zero-cost balance probe.
+// The probe sends one deliberately unaffordable completion request per
+// credential: providers that gate on a worst-case reservation reject it before
+// any generation happens and echo the exact remaining balance inside the
+// rejection body, so measuring costs nothing.
+type OpenAICompatibilityCreditProbe struct {
+	// Enabled turns the probe on for this provider only.
+	Enabled bool `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+
+	// Model is the model used for the probe request. Its output price, together
+	// with MaxTokens, sets the reservation that must exceed any expected
+	// balance so the request is always rejected rather than executed.
+	Model string `yaml:"model,omitempty" json:"model,omitempty"`
+
+	// MaxTokens is the reservation size of the probe request.
+	MaxTokens int `yaml:"max-tokens,omitempty" json:"max-tokens,omitempty"`
+
+	// IntervalMinutes between background refreshes. Non-positive falls back to
+	// the built-in default.
+	IntervalMinutes int `yaml:"interval-minutes,omitempty" json:"interval-minutes,omitempty"`
+
+	// TimeoutSeconds bounds credential acquisition for a probe request.
+	// Non-positive falls back to the built-in default.
+	TimeoutSeconds int `yaml:"timeout-seconds,omitempty" json:"timeout-seconds,omitempty"`
+
+	// Concurrency caps how many credentials are probed at once.
+	// Non-positive falls back to the built-in default.
+	Concurrency int `yaml:"concurrency,omitempty" json:"concurrency,omitempty"`
+
+	// InitialCredit is the credit originally granted to a credential. Remaining
+	// balances are reported next to the derived spend (initial minus balance,
+	// clamped at zero). Non-positive falls back to the built-in default.
+	InitialCredit float64 `yaml:"initial-credit,omitempty" json:"initial-credit,omitempty"`
+
+	// Tiers describe the ordered credit tiers used to bucket each credential.
+	// A credential belongs to the first tier whose reservation it can still
+	// afford; later tiers therefore show the credit that only the cheaper
+	// models can still spend.
+	Tiers []OpenAICompatibilityCreditTier `yaml:"tiers,omitempty" json:"tiers,omitempty"`
+}
+
+// OpenAICompatibilityCreditTier is one ordered credit tier of a probe.
+type OpenAICompatibilityCreditTier struct {
+	// Model is the upstream model name this tier represents.
+	Model string `yaml:"model" json:"model"`
+
+	// OutputPerM is the model's output price per million tokens.
+	OutputPerM float64 `yaml:"output-per-m" json:"output-per-m"`
+
+	// MaxTokens is the completion reservation the tier must afford.
+	// Non-positive uses DefaultCreditProbeTierMaxTokens.
+	MaxTokens int `yaml:"max-tokens,omitempty" json:"max-tokens,omitempty"`
+}
+
+// Reservation returns the worst-case cost a credential must be able to afford
+// for this tier, i.e. the full completion ceiling at the tier output price.
+func (t OpenAICompatibilityCreditTier) Reservation() float64 {
+	limit := t.MaxTokens
+	if limit <= 0 {
+		limit = DefaultCreditProbeTierMaxTokens
+	}
+	if t.OutputPerM <= 0 || limit <= 0 {
+		return 0
+	}
+	return float64(limit) * t.OutputPerM / 1_000_000
 }
 
 // OpenAICompatibilityAPIKey represents an API key configuration with optional proxy setting.

@@ -42,6 +42,9 @@ var corsExposedResponseHeaders = []string{
 	"ETag",
 	"X-Request-Id",
 	"OpenAI-Request-Id",
+	// Reveals which upstream model actually served the request when a credit
+	// tier fallback substituted it; safe to expose and never client-required.
+	"X-CPA-Served-Model",
 }
 
 var corsExposedResponseHeadersJoined = strings.Join(corsExposedResponseHeaders, ", ")
