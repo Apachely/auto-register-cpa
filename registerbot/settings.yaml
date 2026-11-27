@@ -27,7 +27,7 @@ browser:
     window-width: 1440
     window-height: 900
     startup-timeout-seconds: 10
-    step-timeout-seconds: 10
+    step-timeout-seconds: 30
     human-wait-seconds: 10
     retire-after: 32
     remote-debug-port: 9333
