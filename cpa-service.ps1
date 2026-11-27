@@ -18,7 +18,10 @@ $backendExe = Join-Path $runtimeDir 'cli-proxy-api.exe'
 $configPath = Join-Path $root 'config.yaml'
 $backendPidFile = Join-Path $root 'cpa.pid'
 $frontendPidFile = Join-Path $root 'frontend.pid'
+$backendURL = 'http://127.0.0.1:8317'
 $frontendURL = 'http://127.0.0.1:5173/#/login'
+$registerbotProxyPort = 11460
+$registerbotControllerPort = 11461
 
 function Write-Step([string]$Message) {
   Write-Host ('[CPA] ' + $Message)
@@ -239,6 +242,30 @@ function Show-LogTail([string]$Path) {
   }
 }
 
+function Start-RegisterbotProxy {
+  $startScript = Join-Path $registerbotBot 'start-bot-core.ps1'
+  if (-not (Test-Path -LiteralPath $startScript)) {
+    throw ('Registerbot proxy start script not found: ' + $startScript)
+  }
+  $internetSettings = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
+  $before = Get-ItemProperty -LiteralPath $internetSettings -ErrorAction SilentlyContinue
+  $beforeFingerprint = '{0}|{1}|{2}' -f $before.ProxyEnable, $before.ProxyServer, $before.AutoConfigURL
+  Write-Step ('Starting isolated registerbot proxy on 127.0.0.1:' + $registerbotProxyPort + ' ...')
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $startScript
+  if ($LASTEXITCODE -ne 0) {
+    throw ('Registerbot proxy startup failed with exit code ' + $LASTEXITCODE)
+  }
+  if (-not (Test-PortListening $registerbotProxyPort) -or -not (Test-PortListening $registerbotControllerPort)) {
+    throw ('Registerbot proxy ports {0}/{1} are not ready.' -f $registerbotProxyPort, $registerbotControllerPort)
+  }
+  $after = Get-ItemProperty -LiteralPath $internetSettings -ErrorAction SilentlyContinue
+  $afterFingerprint = '{0}|{1}|{2}' -f $after.ProxyEnable, $after.ProxyServer, $after.AutoConfigURL
+  if ($afterFingerprint -ne $beforeFingerprint) {
+    throw 'Registerbot proxy startup changed the Windows system proxy.'
+  }
+  Write-Step 'Isolated registerbot proxy ready; Windows system proxy is unchanged.'
+}
+
 function Start-CpaRuntime {
   if (-not (Test-Path -LiteralPath $configPath)) {
     throw ('CPA config not found: ' + $configPath)
@@ -249,6 +276,7 @@ function Start-CpaRuntime {
 
   Assert-PortFree 8317
   Assert-PortFree 5173
+  Start-RegisterbotProxy
   Ensure-BackendBinary
   New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
 
@@ -258,7 +286,7 @@ function Start-CpaRuntime {
   $frontendOut = Join-Path $logsDir ('frontend-stdout-' + $stamp + '.log')
   $frontendErr = Join-Path $logsDir ('frontend-stderr-' + $stamp + '.log')
 
-  Write-Step 'Starting backend on http://127.0.0.1:8317 ...'
+  Write-Step ('Starting backend on ' + $backendURL + ' ...')
   $backend = Start-Process -FilePath $backendExe `
     -ArgumentList @('--config', ('"' + $configPath + '"')) `
     -WorkingDirectory $root `
@@ -275,13 +303,24 @@ function Start-CpaRuntime {
   }
   $viteScript = Join-Path $panelRoot 'node_modules\vite\bin\vite.js'
   Write-Step 'Starting frontend on http://127.0.0.1:5173 ...'
-  $frontend = Start-Process -FilePath $nodeCommand.Source `
-    -ArgumentList @(('"' + $viteScript + '"'), '--host', '127.0.0.1', '--port', '5173') `
-    -WorkingDirectory $panelRoot `
-    -RedirectStandardOutput $frontendOut `
-    -RedirectStandardError $frontendErr `
-    -WindowStyle Hidden `
-    -PassThru
+  $hadBackendURL = Test-Path Env:CPA_BACKEND_URL
+  $previousBackendURL = $env:CPA_BACKEND_URL
+  try {
+    $env:CPA_BACKEND_URL = $backendURL
+    $frontend = Start-Process -FilePath $nodeCommand.Source `
+      -ArgumentList @(('"' + $viteScript + '"'), '--host', '127.0.0.1', '--port', '5173') `
+      -WorkingDirectory $panelRoot `
+      -RedirectStandardOutput $frontendOut `
+      -RedirectStandardError $frontendErr `
+      -WindowStyle Hidden `
+      -PassThru
+  } finally {
+    if ($hadBackendURL) {
+      $env:CPA_BACKEND_URL = $previousBackendURL
+    } else {
+      Remove-Item Env:CPA_BACKEND_URL -ErrorAction SilentlyContinue
+    }
+  }
   Set-Content -LiteralPath $frontendPidFile -Value ([string]$frontend.Id) -Encoding ASCII
   Set-Content -LiteralPath (Join-Path $runtimeDir 'frontend.pid') -Value ([string]$frontend.Id) -Encoding ASCII
 
@@ -296,11 +335,7 @@ function Start-CpaRuntime {
 
   Write-Step ('Backend ready. PID={0}; log={1}' -f $backend.Id, $backendErr)
   Write-Step ('Frontend ready. PID={0}; log={1}' -f $frontend.Id, $frontendErr)
-  if (-not (Test-PortListening 12450)) {
-    Write-Warning 'Unified gateway 127.0.0.1:12450 is not listening; registration routing will be degraded.'
-  } else {
-    Write-Step 'Unified gateway 127.0.0.1:12450 is available and was left unchanged.'
-  }
+  Write-Step ('Registration uses isolated proxy/controller {0}/{1}; system proxy 12450 was left unchanged.' -f $registerbotProxyPort, $registerbotControllerPort)
 
   if ($OpenBrowser) {
     Start-Process $frontendURL | Out-Null
@@ -314,8 +349,8 @@ try {
       Stop-CpaRuntime
     }
     'Start' {
-      if ((Test-PortListening 8317) -and (Test-PortListening 5173)) {
-        Write-Step 'Backend and frontend are already running.'
+      if ((Test-PortListening 8317) -and (Test-PortListening 5173) -and (Test-PortListening $registerbotProxyPort) -and (Test-PortListening $registerbotControllerPort)) {
+        Write-Step 'Backend, frontend, and isolated registerbot proxy are already running.'
         if ($OpenBrowser) {
           Start-Process $frontendURL | Out-Null
         }

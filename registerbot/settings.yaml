@@ -2,12 +2,14 @@ enabled: true
 state-dir: E:\LY\Tool\CPA\registerbot
 capture-evidence: true
 gateway:
-    proxy-url: http://127.0.0.1:12450
+    proxy-url: http://127.0.0.1:11460
+    controller-url: http://127.0.0.1:11461
     auto-discover: true
     verify-exit-ip: true
     exit-ip-url: https://api.ipify.org?format=json
     share-mode: lease
-    pin-timeout-seconds: 20
+    healthy-nodes-file: ../registerbot-bot/healthy-nodes.json
+    pin-timeout-seconds: 10
     probe-timeout-seconds: 5
     circuit-threshold: 3
     circuit-cooldown-seconds: 60
@@ -21,12 +23,13 @@ browser:
         - C:\Program Files\Google\Chrome\Application\chrome.exe
         - C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
     pool-size: 2
+    warm-pool-size: 1
     window-width: 1440
     window-height: 900
-    startup-timeout-seconds: 40
-    step-timeout-seconds: 120
-    human-wait-seconds: 300
-    retire-after: 8
+    startup-timeout-seconds: 10
+    step-timeout-seconds: 10
+    human-wait-seconds: 10
+    retire-after: 32
     remote-debug-port: 9333
 import:
     family: openai-compatibility
@@ -37,13 +40,13 @@ channels:
       name: FreeAIapikey
       enabled: true
       provider: FreeAi
-      proxy-url: http://127.0.0.1:12450
+      proxy-url: http://127.0.0.1:11460
       concurrency: 1
       group: 节点选择
       rotate-node: true
-      interval-seconds: 5
-      step-delay-millis: 900
-      max-attempts: 2
+      interval-seconds: 1
+      step-delay-millis: 200
+      max-attempts: 1
       onboarding-role: student
       onboarding-source: google
       skip-optional-discord: true

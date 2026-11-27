@@ -17,6 +17,9 @@
 /registerbot/
 /cpa-dev/deployment-backups/
 /registerbot-bot/config.json
+/registerbot-bot/runtime-config.json
+/registerbot-bot/resolution-cache.json
+/registerbot-bot/healthy-nodes.json
 /registerbot-bot/logs/
 /registerbot-bot/cache.db
 /registerbot-bot/provider.db
