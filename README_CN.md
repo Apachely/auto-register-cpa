@@ -4,6 +4,164 @@
 
 [English](README.md) | 中文 | [日本語](README_JA.md)
 
+## 本地运行这套 CPA（二开交付版）
+
+本节说明如何在一台新机器上把 **后端 + 管理面板 + 多渠道注册机 + 注册专用隔离代理** 完整跑起来。上游 CLIProxyAPI 的通用用法见后文。
+
+### 组件与端口
+
+| 组件 | 代码位置 | 默认地址 |
+| --- | --- | --- |
+| CPA 后端（Go，含注册机引擎） | `feat-ly/registerbot-backend` 分支 → `cpa-dev/cpa-backend` | `http://127.0.0.1:8317` |
+| 管理面板（React + Vite，含注册机页） | `feat-ly/registerbot-panel` 分支 → `cpa-dev/cpa-panel` | `http://127.0.0.1:5173` |
+| 交付目录（启动脚本、配置模板、验证记录） | 本仓库 `main` / `feat-ly/registerbot-delivery` | — |
+| 注册专用隔离代理（sing-box） | `registerbot-bot/` | `127.0.0.1:11460` mixed、`127.0.0.1:11461` controller |
+
+一键脚本只使用上述专用端口，不会修改、也不依赖你已有的系统代理（例如 `12440/12450`）。
+
+### 1. 依赖
+
+- Windows 10/11 + PowerShell 5.1 以上（一键脚本是 PowerShell；其他系统见「手动运行」）
+- Go 1.26.10 以上（`cpa-dev/cpa-backend/go.mod` 要求）
+- Bun 1.4.x（面板 `packageManager` 声明 1.4.3）与 Node 20.19+/22.12+（Vite 8 要求）
+- Chrome 或 Edge（注册机嵌入式浏览器）
+- sing-box 的 Windows 可执行文件，放在 `_download/singbox/sing-box.exe`
+- 一份你自己的代理订阅（导出为 sing-box JSON），注册机靠它轮换出口 IP
+
+### 2. 取代码（三分支布局）
+
+```powershell
+git clone --branch main https://github.com/Apachely/auto-register-cpa.git auto-register-cpa
+Set-Location auto-register-cpa
+git clone --single-branch --branch feat-ly/registerbot-backend https://github.com/Apachely/auto-register-cpa.git cpa-dev/cpa-backend
+git clone --single-branch --branch feat-ly/registerbot-panel https://github.com/Apachely/auto-register-cpa.git cpa-dev/cpa-panel
+```
+
+交付分支不包含这两个嵌套源码仓库的 Git 元数据；源码分支保留各自的上游历史，二者不要直接互相合并。
+
+### 3. 补齐本机文件（这些都不入库，属正常设计）
+
+| 文件 | 怎么来 |
+| --- | --- |
+| `config.yaml` | 复制 `config.example.yaml`（每个字段都有注释），确认 `server.port: 8317`，填你自己的渠道与 `api-keys` |
+| `admin-key.txt` / `client-api-key.txt` | 自行生成的随机串，分别用于管理接口与客户端鉴权 |
+| `auth/` | 由 OAuth 授权流程生成，不要手工伪造 |
+| `registerbot-bot/config.json` | 你的 sing-box 订阅配置，硬性要求：mixed 入站只监听 `127.0.0.1:11460`，`experimental.clash_api.external_controller` 为 `127.0.0.1:11461`，且 `outbounds` 中存在一个 `selector` 分组供节点轮换 |
+| `_download/singbox/sing-box.exe` | 官方 sing-box Windows 二进制 |
+| `cpa-dev/cpa-panel/node_modules` | 在面板目录执行 `bun install --frozen-lockfile` |
+
+不想使用注册专用代理池时，把 `registerbot/settings.yaml` 的 `proxy-pool.mode` 改为 `disabled`（`enforce` 会强制要求网关出口 IP 校验开启）。
+
+### 4. 一键启动 / 停止
+
+```powershell
+.\start-or-restart-cpa.cmd        # 双击同样效果
+powershell -NoProfile -ExecutionPolicy Bypass -File .\cpa-service.ps1 -Action Restart
+.\start.ps1                       # 已在运行时直接复用
+.\stop.ps1                        # 停止本仓库的全部进程
+```
+
+脚本执行顺序：
+
+1. 精确停止本仓库自己的后端、面板、注册机浏览器与隔离代理子进程；
+2. 自动挑选物理网卡并启动隔离注册代理 `11460/11461`，随后校验 Windows 系统代理未被改动；
+3. 后端源码比 `.cpa-runtime/cli-proxy-api.exe` 新时自动执行增量 `go build`；
+4. 启动后端 `8317` 与面板 `5173`，等待端口就绪后打开 `http://127.0.0.1:5173/#/login`；
+5. 任一步失败会打印后端/面板 stderr 日志尾部并回滚停止。
+
+### 5. 手动运行（调试或跨平台）
+
+```powershell
+# 后端
+cd cpa-dev/cpa-backend
+go build -o cli-proxy-api ./cmd/server
+./cli-proxy-api --config ../../config.yaml
+
+# 面板（另开终端）
+cd cpa-dev/cpa-panel
+bun install --frozen-lockfile
+$env:CPA_BACKEND_URL = 'http://127.0.0.1:8317'
+bun run dev -- --host 127.0.0.1 --port 5173
+```
+
+面板把 `/v1`、`/v0`、`/v8` 代理到 `CPA_BACKEND_URL`，不设该变量时回落到本机 `8317`。非 Windows 上启动脚本不可用（依赖 `Get-NetRoute`、`Get-NetIPAddress` 等 cmdlet），需要自行用 sing-box 起 `11460/11461`，并把 `registerbot/settings.yaml` 的 `gateway.proxy-url` / `gateway.controller-url` 指过去。
+
+### 6. 注册机怎么用
+
+面板左侧「注册机」→ 选择渠道 → 在账户列表粘贴，每行一组 `账户|密码`（最多 500 行）→ 「开始批量注册」。
+
+- 无人值守：不等待人工点击，失败即快速失败并按队列重试；
+- 每个新账户强制轮换节点与出口 IP，同一出口 IP 最多 3 个可用账户；
+- 可用判定 = 官方开通完成 **且** 确认 $5 欢迎额度 **且** 生成的 API Key 通过一次真实推理校验并成功写入渠道；
+- 页面在 `browser.step-timeout-seconds`（当前 30 秒）内没有任何推进，即判定该账户失败；
+- 需要人工处理验证码或风控的账户停在 `waiting_human`，不会被自动跳过，也不会伪造通过。
+
+### 7. 注册机配置速查（`registerbot/settings.yaml`）
+
+| 字段 | 当前值 | 含义 |
+| --- | --- | --- |
+| `gateway.proxy-url` / `gateway.controller-url` | `127.0.0.1:11460` / `127.0.0.1:11461` | 注册专用代理与控制器 |
+| `gateway.verify-exit-ip` | `true` | 换节点后实测出口 IP |
+| `gateway.share-mode` | `lease` | 账户执行期间独占租约 |
+| `gateway.pin-timeout-seconds` / `gateway.probe-timeout-seconds` | `10` / `5` | 固定节点 / 单节点探测预算 |
+| `proxy-pool.mode` | `enforce` | 强制代理池（`disabled` 关闭） |
+| `proxy-pool.max-usable-accounts-per-ip` | `3` | 单个出口 IP 的账户上限 |
+| `browser.mode` / `browser.chrome-paths` | `embedded` | 嵌入式 Chrome/Edge |
+| `browser.pool-size` / `browser.warm-pool-size` | `2` / `1` | 并发浏览器数与预热数 |
+| `browser.startup-timeout-seconds` | `10` | 浏览器启动 + CDP 握手 |
+| `browser.step-timeout-seconds` | `30` | 单步页面无推进的上限 |
+| `browser.human-wait-seconds` | `10` | 等待人工介入 |
+| `browser.retire-after` | `32` | 浏览器复用次数达到后退役 |
+| `channels[].interval-seconds` / `channels[].step-delay-millis` | `1` / `200` | 账户间隔 / 步骤节奏 |
+| `channels[].rotate-node` / `channels[].group` | `true` / 选择器分组名 | 是否逐账户换节点 |
+
+上述秒级字段都会被 `internal/registerbot/settings.go` 中的 `automaticWaitLimit`（30 秒）封顶，配置写更大也不会生效。
+
+### 8. 自检与验证
+
+```powershell
+# 后端注册机包
+cd cpa-dev/cpa-backend
+go test ./internal/registerbot -count=1
+go vet ./internal/registerbot
+
+# 面板全量（测试 + ESLint + 构建）
+cd cpa-dev/cpa-panel
+bun run verify
+
+# 端口与隔离代理健康
+Get-NetTCPConnection -LocalPort 8317,5173,11460,11461 -State Listen
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:11461/version
+```
+
+### 9. 日志与产物
+
+- `logs/backend-stdout-*.log`、`logs/backend-stderr-*.log`、`logs/frontend-*.log`
+- `registerbot-bot/logs/bot-core-*.log`
+- `.cpa-runtime/`（运行用可执行文件与 pid），根目录 `cpa.pid` / `frontend.pid`
+- 注册过程截图等证据由 `registerbot/settings.yaml` 的 `capture-evidence` 控制，属本机产物，不要提交
+
+### 10. 常见故障
+
+| 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| `Port 8317 is still occupied by PID …` | 旧实例或别的程序占用 | `.\stop.ps1`；或改 `config.yaml` 端口 |
+| `Frontend dependencies are missing` | 面板未安装依赖 | `cd cpa-dev/cpa-panel` 后 `bun install --frozen-lockfile` |
+| `registerbot proxy config missing` | 没有放置订阅配置 | 见第 3 步的 `registerbot-bot/config.json` |
+| `…must own only mixed 11460 and controller 127.0.0.1:11461` | 订阅端口不符合约束 | 按第 3 步修改 `inbounds` 与 `clash_api` |
+| `registerbot physical network interface was not found` | 只有 tun/虚拟网卡默认路由 | 接上物理网络后重试 |
+| `Backend build failed with exit code …` | Go 版本低于 1.26.10 | 升级 Go |
+| `page did not advance within 30s` | 节点抖动或服务商响应慢 | 换更稳的分组；必要时调整 `step-timeout-seconds`（上限 30） |
+| `healthy registerbot nodes: 0/N` | 订阅入口解析失败 | 重跑；解析缓存 1 小时过期后会自动重解析 |
+| 面板被还原成上游版本 | 后端自动更新面板产物 | `config.yaml` 设置 `management.disable-auto-update-panel: true` |
+
+### 11. 安全边界
+
+- 仓库不含任何凭据：`config.yaml`、`admin-key.txt`、`client-api-key.txt`、`auth/`、`registerbot-bot/config.json`、运行日志与订阅快照都在 `.gitignore` 中；
+- 注册机只走服务商可见的登录与开通流程，不绕过验证码、不绕过风控、不伪造授权状态；
+- 不要把生成的 API Key、订阅服务器地址、出口 IP 或含账号密码的账户列表提交进仓库；
+- 请仅在你自己拥有或已获授权的服务与账号范围内使用。
+
 如果您想在您的桌面使用 CLIProxyAPI，我们推荐您使用我们的 [EasyCLIProxyAPI](https://github.com/router-for-me/EasyCLIProxyAPI) 桌面客户端，该客户端提供了图形化的配置界面、自动更新、系统托盘集成、一键启动/关闭 CLIProxyAPI 服务等功能。
 
 CLIProxyAPI 是一个为 CLI 提供 OpenAI/Gemini/Claude/Codex/Grok 兼容 API 接口的代理服务器。

@@ -4,6 +4,164 @@ This repository contains the customized CPA delivery workspace. The backend and 
 
 English | [中文](README_CN.md) | [日本語](README_JA.md)
 
+## Running this CPA stack locally (customized delivery)
+
+This section explains how to bring up the full stack on a fresh machine: **backend + management panel + multi-channel registration bot + the isolated proxy used only by the bot**. General upstream CLIProxyAPI usage is documented below.
+
+### Components and ports
+
+| Component | Where the code lives | Default address |
+| --- | --- | --- |
+| CPA backend (Go, includes the registration engine) | `feat-ly/registerbot-backend` branch → `cpa-dev/cpa-backend` | `http://127.0.0.1:8317` |
+| Management panel (React + Vite, includes the bot page) | `feat-ly/registerbot-panel` branch → `cpa-dev/cpa-panel` | `http://127.0.0.1:5173` |
+| Delivery workspace (start scripts, config template, verification records) | this repository, `main` / `feat-ly/registerbot-delivery` | — |
+| Isolated registration proxy (sing-box) | `registerbot-bot/` | `127.0.0.1:11460` mixed, `127.0.0.1:11461` controller |
+
+The launcher only uses these dedicated ports. It never modifies and never depends on your existing system proxy (for example `12440/12450`).
+
+### 1. Prerequisites
+
+- Windows 10/11 with PowerShell 5.1 or newer (the one-click scripts are PowerShell; see "Run manually" for other platforms)
+- Go 1.26.10 or newer (required by `cpa-dev/cpa-backend/go.mod`)
+- Bun 1.4.x (declared as `packageManager` in the panel) and Node 20.19+/22.12+ (required by Vite 8)
+- Chrome or Edge (embedded browser used by the registration bot)
+- The sing-box Windows binary at `_download/singbox/sing-box.exe`
+- Your own proxy subscription exported as a sing-box JSON config; the bot rotates exit IPs through it
+
+### 2. Get the code (three-branch layout)
+
+```powershell
+git clone --branch main https://github.com/Apachely/auto-register-cpa.git auto-register-cpa
+Set-Location auto-register-cpa
+git clone --single-branch --branch feat-ly/registerbot-backend https://github.com/Apachely/auto-register-cpa.git cpa-dev/cpa-backend
+git clone --single-branch --branch feat-ly/registerbot-panel https://github.com/Apachely/auto-register-cpa.git cpa-dev/cpa-panel
+```
+
+The delivery branch intentionally does not carry the Git metadata of those two nested source repositories. Each source branch keeps its own upstream history, so do not merge them into the delivery branch.
+
+### 3. Files you must provide locally (they are not committed, by design)
+
+| File | How to obtain it |
+| --- | --- |
+| `config.yaml` | Copy `config.example.yaml` (every field is commented), keep `server.port: 8317`, then add your own channels and `api-keys` |
+| `admin-key.txt` / `client-api-key.txt` | Generate random strings yourself; they protect the management API and client access |
+| `auth/` | Produced by the OAuth authorization flow; do not hand-craft it |
+| `registerbot-bot/config.json` | Your sing-box subscription config. Hard requirements: exactly one mixed inbound listening on `127.0.0.1:11460`, `experimental.clash_api.external_controller` set to `127.0.0.1:11461`, and one `selector` group inside `outbounds` for node rotation |
+| `_download/singbox/sing-box.exe` | Official sing-box Windows release binary |
+| `cpa-dev/cpa-panel/node_modules` | Run `bun install --frozen-lockfile` inside the panel directory |
+
+To skip the dedicated proxy pool, set `proxy-pool.mode` to `disabled` in `registerbot/settings.yaml` (`enforce` requires gateway exit-IP verification).
+
+### 4. Start and stop with one click
+
+```powershell
+.\start-or-restart-cpa.cmd        # double-clicking does the same
+powershell -NoProfile -ExecutionPolicy Bypass -File .\cpa-service.ps1 -Action Restart
+.\start.ps1                       # reuses a healthy running stack
+.\stop.ps1                        # stops every process started from this repository
+```
+
+What the launcher does, in order:
+
+1. Stops only this repository's backend, panel, bot browsers and isolated proxy child processes;
+2. Picks the physical network interface, starts the isolated registration proxy on `11460/11461`, then verifies that the Windows system proxy was left untouched;
+3. Runs an incremental `go build` when the backend source is newer than `.cpa-runtime/cli-proxy-api.exe`;
+4. Starts the backend on `8317` and the panel on `5173`, waits for both ports, then opens `http://127.0.0.1:5173/#/login`;
+5. On any failure, prints the tail of the backend/panel stderr logs and rolls the stack back down.
+
+### 5. Run manually (debugging or non-Windows)
+
+```powershell
+# backend
+cd cpa-dev/cpa-backend
+go build -o cli-proxy-api ./cmd/server
+./cli-proxy-api --config ../../config.yaml
+
+# panel (second terminal)
+cd cpa-dev/cpa-panel
+bun install --frozen-lockfile
+$env:CPA_BACKEND_URL = 'http://127.0.0.1:8317'
+bun run dev -- --host 127.0.0.1 --port 5173
+```
+
+The panel proxies `/v1`, `/v0` and `/v8` to `CPA_BACKEND_URL`, falling back to local `8317` when the variable is unset. The launcher scripts rely on Windows cmdlets (`Get-NetRoute`, `Get-NetIPAddress`), so on other platforms start sing-box yourself on `11460/11461` and point `gateway.proxy-url` / `gateway.controller-url` in `registerbot/settings.yaml` at it.
+
+### 6. Using the registration bot
+
+Panel sidebar → **Registration bot** → pick a channel → paste accounts, one `account|password` pair per line (up to 500 lines) → **Start batch registration**.
+
+- Unattended: it never waits for a human click; a failing account fails fast and is re-queued;
+- Every new account forces a node and exit-IP rotation, and one exit IP serves at most 3 usable accounts;
+- An account counts as usable only when onboarding finished **and** the $5 welcome credit was confirmed **and** the issued API key passed a real inference check and was written into the channel;
+- If the page makes no progress within `browser.step-timeout-seconds` (currently 30 seconds), that account is marked failed;
+- Accounts that need a captcha or risk check stop at `waiting_human`; they are neither skipped silently nor faked as passed.
+
+### 7. Registration bot settings reference (`registerbot/settings.yaml`)
+
+| Field | Current value | Meaning |
+| --- | --- | --- |
+| `gateway.proxy-url` / `gateway.controller-url` | `127.0.0.1:11460` / `127.0.0.1:11461` | Dedicated proxy and controller |
+| `gateway.verify-exit-ip` | `true` | Measure the real exit IP after each node switch |
+| `gateway.share-mode` | `lease` | Exclusive lease per account while it runs |
+| `gateway.pin-timeout-seconds` / `gateway.probe-timeout-seconds` | `10` / `5` | Node pinning / single-node probe budget |
+| `proxy-pool.mode` | `enforce` | Enforced pool (`disabled` turns it off) |
+| `proxy-pool.max-usable-accounts-per-ip` | `3` | Account cap per exit IP |
+| `browser.mode` / `browser.chrome-paths` | `embedded` | Embedded Chrome/Edge |
+| `browser.pool-size` / `browser.warm-pool-size` | `2` / `1` | Concurrent and pre-warmed browsers |
+| `browser.startup-timeout-seconds` | `10` | Browser launch plus CDP handshake |
+| `browser.step-timeout-seconds` | `30` | Maximum stall allowed per step |
+| `browser.human-wait-seconds` | `10` | Wait budget for manual intervention |
+| `browser.retire-after` | `32` | Browser retirement after this many reuses |
+| `channels[].interval-seconds` / `channels[].step-delay-millis` | `1` / `200` | Account interval / pacing between steps |
+| `channels[].rotate-node` / `channels[].group` | `true` / selector group name | Rotate nodes per account, and which group |
+
+All of these second-level fields are clamped by `automaticWaitLimit` (30 seconds) in `internal/registerbot/settings.go`; larger values have no effect.
+
+### 8. Self-check
+
+```powershell
+# backend registration package
+cd cpa-dev/cpa-backend
+go test ./internal/registerbot -count=1
+go vet ./internal/registerbot
+
+# full panel gate (tests + ESLint + build)
+cd cpa-dev/cpa-panel
+bun run verify
+
+# ports and proxy health
+Get-NetTCPConnection -LocalPort 8317,5173,11460,11461 -State Listen
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:11461/version
+```
+
+### 9. Logs and artifacts
+
+- `logs/backend-stdout-*.log`, `logs/backend-stderr-*.log`, `logs/frontend-*.log`
+- `registerbot-bot/logs/bot-core-*.log`
+- `.cpa-runtime/` (runtime binary and pid files), plus `cpa.pid` / `frontend.pid` at the repository root
+- Registration evidence screenshots are controlled by `capture-evidence` in `registerbot/settings.yaml`; they are local artifacts and must not be committed
+
+### 10. Common failures
+
+| Message | Cause | Fix |
+| --- | --- | --- |
+| `Port 8317 is still occupied by PID …` | Old instance or another program | `.\stop.ps1`, or change the port in `config.yaml` |
+| `Frontend dependencies are missing` | Panel dependencies not installed | `cd cpa-dev/cpa-panel` then `bun install --frozen-lockfile` |
+| `registerbot proxy config missing` | No subscription config placed | See `registerbot-bot/config.json` in step 3 |
+| `…must own only mixed 11460 and controller 127.0.0.1:11461` | Subscription ports violate the constraint | Adjust `inbounds` and `clash_api` as in step 3 |
+| `registerbot physical network interface was not found` | Only tun/virtual default routes | Connect a physical network and retry |
+| `Backend build failed with exit code …` | Go older than 1.26.10 | Upgrade Go |
+| `page did not advance within 30s` | Node jitter or slow provider | Switch to a steadier group; raise `step-timeout-seconds` if needed (hard cap 30) |
+| `healthy registerbot nodes: 0/N` | Subscription host resolution failed | Rerun; the resolution cache expires after one hour and re-resolves |
+| Panel reverted to the upstream build | Backend auto-updates the panel artifact | Set `management.disable-auto-update-panel: true` in `config.yaml` |
+
+### 11. Safety boundaries
+
+- The repository contains no credentials: `config.yaml`, `admin-key.txt`, `client-api-key.txt`, `auth/`, `registerbot-bot/config.json`, runtime logs and subscription snapshots are all listed in `.gitignore`;
+- The bot only follows the provider's visible sign-in and onboarding flow. It does not bypass captchas, does not bypass risk controls, and never fakes an authorization state;
+- Never commit issued API keys, subscription server addresses, exit IPs, or account/password lists;
+- Use this only against services and accounts you own or are explicitly authorized to operate.
+
 If you want to use CLIProxyAPI on your desktop, we recommend our [EasyCLIProxyAPI](https://github.com/router-for-me/EasyCLIProxyAPI) desktop client. It provides a graphical configuration UI, automatic updates, system tray integration, and one-click start/stop for the CLIProxyAPI service.
 
 CLIProxyAPI is a proxy server that provides OpenAI/Gemini/Claude/Codex/Grok compatible API interfaces for CLI.
