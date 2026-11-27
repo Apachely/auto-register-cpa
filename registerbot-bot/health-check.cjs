@@ -12,7 +12,7 @@ const concurrency = 24;
 const maximumNodes = 8;
 const minimumNodes = 3;
 
-async function requestJSON(url, timeout = 5000) {
+async function requestJSON(url, timeout = 12000) {
   const response = await fetch(url, { signal: AbortSignal.timeout(timeout) });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
@@ -28,7 +28,9 @@ async function selectNode(name) {
     signal: AbortSignal.timeout(3000),
   });
   if (!response.ok) throw new Error(`selector HTTP ${response.status}`);
-  await wait(300);
+  // Node tunnels jitter up to several seconds; give the pin time to take effect
+  // before reading the exit address, otherwise a healthy node looks unverifiable.
+  await wait(800);
 }
 
 function readExitIP() {
@@ -41,9 +43,9 @@ function readExitIP() {
       '--proxy',
       'http://127.0.0.1:11460',
       '--connect-timeout',
-      '2',
+      '6',
       '--max-time',
-      '4',
+      '15',
       'http://api.ipify.org?format=json',
     ],
     { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }
@@ -81,9 +83,9 @@ async function main() {
     while (cursor < nodes.length) {
       const index = cursor++;
       const node = nodes[index];
-      const endpoint = `${controller}/proxies/${encodeURIComponent(node)}/delay?url=${encodeURIComponent(target)}&timeout=3000`;
+      const endpoint = `${controller}/proxies/${encodeURIComponent(node)}/delay?url=${encodeURIComponent(target)}&timeout=9000`;
       try {
-        const result = await requestJSON(endpoint, 4500);
+        const result = await requestJSON(endpoint, 12000);
         const delay = Number(result.delay);
         if (Number.isFinite(delay) && delay > 0) healthy.push({ name: node, delay_ms: delay });
       } catch {
